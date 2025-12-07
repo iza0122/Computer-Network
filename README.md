@@ -1,6 +1,13 @@
 ﻿## Cấu trúc dự án
 ```
 Solution 'ComputerRemoteControl'
+
+
+	
+ ├── 🟢 Shared (Nơi này chứa thư viện dùng chung cho 2 project dưới)
+ |   ├── 📂 Models                <-- [DỮ LIỆU CHUNG]
+ │   │    └── 📄 RemoteCommand.cs (Định nghĩa gói tin: { Action: "Shutdown", MachineID: "PC1" })
+ │
  │
  ├── 🟢 1. PROJECT WEB: ComputerRemoteControl (ASP.NET Core Razor Pages)
  │    │    Re: Đóng vai trò Server trung tâm & Giao diện điều khiển
@@ -8,8 +15,6 @@ Solution 'ComputerRemoteControl'
  │    ├── 📂 Hubs                  <-- [TRẠM TRUNG CHUYỂN SIGNALR]
  │    │    └── 📄 RemoteHub.cs     (Nhận lệnh từ Web -> Bắn xuống Agent)
  │    │
- │    ├── 📂 Models                <-- [DỮ LIỆU CHUNG]
- │    │    └── 📄 RemoteCommand.cs (Định nghĩa gói tin: { Action: "Shutdown", MachineID: "PC1" })
  │    │
  │    ├── 📂 Pages                 <-- [GIAO DIỆN NGƯỜI DÙNG]
  │    │    ├── 📄 Index.cshtml     (Trang giới thiệu/Trạng thái)

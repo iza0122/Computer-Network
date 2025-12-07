@@ -1,6 +1,7 @@
-﻿namespace RemoteComputerController.Models
+﻿namespace Shared
 {
     public class RemoteCommand
     {
+
     }
 }
