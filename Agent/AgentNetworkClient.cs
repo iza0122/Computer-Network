@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Agent
 {
-    internal class AgentClient
+    internal class AgentNetworkClient
     {
     }
 }
