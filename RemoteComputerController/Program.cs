@@ -1,28 +1,30 @@
-using System.Net.Sockets;
+﻿using RemoteComputerController.Core;
+using System.Net.WebSockets;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-builder.Services.AddRazorPages();
+builder.Services.AddSingleton<Server>();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (!app.Environment.IsDevelopment())
+var options = new WebSocketOptions { KeepAliveInterval = TimeSpan.FromMinutes(2) };
+
+app.UseWebSockets(options);
+app.Use(async (context, next) =>
 {
-    app.UseExceptionHandler("/Error");
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-    app.UseHsts();
-}
+    if (context.WebSockets.IsWebSocketRequest && context.Request.Path == "/ws")
+    {
+        var server = context.RequestServices.GetService<Server>();
+        using var websocket = await context.WebSockets.AcceptWebSocketAsync();
+        if (server == null) throw new Exception("Khởi tạo server thất bại"); 
+        await server.Connect(websocket);
+    }
+    // else, nếu không phải là WebSocket, chuyển request cho Middleware tiếp theo
+    else
+    {
+        await next(context);
+    }
+});
 
-app.UseHttpsRedirection();
-
-app.UseRouting();
-
-app.UseAuthorization();
-
-app.MapStaticAssets();
-app.MapRazorPages()
-   .WithStaticAssets();
 
 app.Run();
