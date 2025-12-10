@@ -1,4 +1,5 @@
-﻿ComputerRemoteControl (Solution)
+```
+ ComputerRemoteControl (Solution)
 │
 ├── 1. RemoteServer (ASP.NET Core Web App)
 │   ├── Properties
@@ -23,3 +24,4 @@
     ├── AgentNetworkClient.cs  <-- (Vòng lặp kết nối và nhận lệnh)
     ├── CommandExecutor.cs     <-- (Xử lý lệnh: Process.Start, Chụp ảnh...)
     └── Program.cs                 <-- (Hàm Main: Cấu hình URL server và chạy Client)
+```
