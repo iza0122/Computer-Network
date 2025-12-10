@@ -37,8 +37,5 @@ namespace RemoteComputerController.Core
             if (_currentAgentSocket == null || _currentAgentSocket.State != WebSocketState.Open) throw new Exception("Không có kết nối!");
             await _currentAgentSocket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None);
         }
-
-
-
     }
 }
