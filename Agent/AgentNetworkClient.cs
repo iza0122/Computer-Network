@@ -3,21 +3,26 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.WebSockets;
+using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
 
 namespace Agent
 {
-    public class AgentNetworkClient
+    public class AgentNetworkClient : IResponseSender
     {
         private readonly Uri _serverUri;
         private ClientWebSocket? _client;
 
-        private readonly CommandExecutor _executor;
-        public AgentNetworkClient(string serverUrl, CommandExecutor executor)
+        private CommandExecutor? _executor;
+        public AgentNetworkClient(string serverUrl)
         {
             // Chuyển URL string sang đối tượng Uri, thay ws:// bằng wss:// nếu có bảo mật
             _serverUri = new Uri(serverUrl.Replace("http://", "ws://").Replace("https://", "wss://"));
+        }
+
+        public void SetupExecutor(CommandExecutor executor)
+        {
             _executor = executor;
         }
 
@@ -54,7 +59,7 @@ namespace Agent
                                 try
                                 {
                                     RemoteCommand command = CommandJson.FromJson(receivedMessage);
-                                    _executor.Execute(command);
+                                    await _executor.Execute(command, cancellationToken);
                                 }
                                 catch (InvalidOperationException ex)
                                 {
@@ -81,7 +86,7 @@ namespace Agent
             }
         }
 
-        public async Task SendReponse(object data, CancellationToken cancellation)
+        public async Task SendData(object data, CancellationToken cancellation)
         {
             if (_client == null || _client.State != WebSocketState.Open)
             {

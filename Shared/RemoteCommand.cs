@@ -53,4 +53,9 @@ namespace Shared
        StartTask,
        Webcam
     }
+
+    public interface IResponseSender
+    {
+        Task SendData(object data, CancellationToken cancellationToken);
+    }
 }

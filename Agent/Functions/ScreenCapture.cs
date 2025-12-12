@@ -9,13 +9,13 @@ namespace Agent.Functions
     /// <summary>
     /// Lớp quản lý chức năng chụp màn hình (Screenshot).
     /// </summary>
-    public class ScreenCapture
+    public static class ScreenCapture
     {
         /// <summary>
         /// Chụp toàn bộ màn hình và chuyển đổi thành mảng byte
         /// </summary>
         /// <returns>mảng byte của ảnh chụp (dạng PNG) hoặc null nếu lỗi.</returns>
-        public byte[] CaptureScreenToBytes()
+        public static byte[]? CaptureScreenToBytes()
         {
             try
             {
