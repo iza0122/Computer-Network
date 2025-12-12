@@ -1,5 +1,7 @@
 ﻿using RemoteComputerController.Core;
 using System.Net.WebSockets;
+using System.Text;
+Console.OutputEncoding = Encoding.UTF8;
 
 var builder = WebApplication.CreateBuilder(args);
 

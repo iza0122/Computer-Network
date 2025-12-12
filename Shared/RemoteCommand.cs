@@ -42,4 +42,15 @@ namespace Shared
         ?? throw new InvalidOperationException("Chuỗi json không hợp lệ!\n");
         }
     }
+
+    public enum AgentCommandType
+    {
+       None,
+       Shutdown,
+       Restart,
+       Capture,
+       StartApp,
+       StartTask,
+       Webcam
+    }
 }
