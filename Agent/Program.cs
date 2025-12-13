@@ -5,7 +5,7 @@ using System.Text;
 
 Console.OutputEncoding = Encoding.UTF8;
 
-string URL = "ws://localhost:5000/ws";
+string URL = "ws://localhost:5000/agent";
 
 var cts = new CancellationTokenSource();
 var agent = new Agent.AgentNetworkClient(URL);

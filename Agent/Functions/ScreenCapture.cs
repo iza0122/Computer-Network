@@ -10,14 +10,12 @@ namespace Agent.Functions
     public static class ScreenCapture
     {
         [DllImport("user32.dll")]
-        private static extern bool SetProcessDPIAware();
-
+        static extern bool SetProcessDPIAware();
         public static byte[]? CaptureScreenToBytes()
         {
             try
             {
                 SetProcessDPIAware();
-
                 Rectangle bounds = SystemInformation.VirtualScreen;
 
                 using Bitmap bitmap = new Bitmap(bounds.Width, bounds.Height);

@@ -41,6 +41,9 @@ namespace Agent
 
                         byte[] buffer = new byte[1024 * 4];
 
+                        //Gửi 1 gói tin nhỏ để cho bộ đệm sẵn sàng
+                        await WarmUpNetworkBuffer();
+
                         if (_client == null) throw new Exception("Kết nối rỗng");
                         while (_client.State == WebSocketState.Open)
                         {
@@ -111,5 +114,27 @@ namespace Agent
 
             await _client.SendAsync(new ArraySegment<byte>(buffer), messageType, true, cancellation);
         }
+        public async Task WarmUpNetworkBuffer()
+        {
+            // Gửi một gói tin nhỏ để khởi tạo và làm ấm bộ đệm mạng
+            byte[] data = System.Text.Encoding.UTF8.GetBytes("READY");
+            if (_client.State == WebSocketState.Open)
+            {
+                try
+                {
+                    await _client.SendAsync(
+                        new ArraySegment<byte>(data),
+                        System.Net.WebSockets.WebSocketMessageType.Text,
+                        endOfMessage: true,
+                        CancellationToken.None
+                    );
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Warm-up Error] {ex.Message}");
+                }
+            }
+        }
     }
+
 }
