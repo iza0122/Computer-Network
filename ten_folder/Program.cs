@@ -98,7 +98,7 @@ namespace AgentForMe
         }
     }
 }*/
-
+/* Này test code của Function 6
 
 // File: Program.cs
 using System;
@@ -117,6 +117,38 @@ namespace AgentForMe
 
             // Khởi chạy Form xem Webcam
             // (WebcamViewerForm hiện đã nằm trong Namespace AgentForMe)
+            Application.Run(new WebcamViewerForm());
+        }
+    }
+
+}
+*/
+
+// New Test 6 by JD
+using System;
+using System.Windows.Forms;
+using AgentForMe; // Đảm bảo đúng Namespace nơi WebcamViewerForm được định nghĩa
+
+namespace AgentForMe
+{
+    internal static class Program
+    {
+        /// <summary>
+        /// Điểm vào chính của ứng dụng.
+        /// </summary>
+        [STAThread]
+        static void Main()
+        {
+            // Cần thiết cho các ứng dụng Windows Forms để đảm bảo 
+            // các điều khiển được hiển thị chính xác.
+            Application.EnableVisualStyles();
+
+            // Đặt chế độ kết xuất văn bản tương thích.
+            Application.SetCompatibleTextRenderingDefault(false);
+
+            // Chạy Form hiển thị Webcam.
+            // Điều này khởi tạo WebcamViewerForm (Function6_2.cs), 
+            // tải các thiết bị, và bắt đầu lắng nghe sự kiện.
             Application.Run(new WebcamViewerForm());
         }
     }
