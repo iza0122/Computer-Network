@@ -13,12 +13,13 @@ namespace Agent
     {
         private readonly Uri _serverUri;
         private ClientWebSocket? _client;
-
         private CommandExecutor? _executor;
-        public AgentNetworkClient(string serverUrl)
+
+        private readonly CancellationTokenSource _appCts;
+        public AgentNetworkClient(string serverUrl, CancellationTokenSource appCts)
         {
-            // Chuyển URL string sang đối tượng Uri, thay ws:// bằng wss:// nếu có bảo mật
             _serverUri = new Uri(serverUrl.Replace("http://", "ws://").Replace("https://", "wss://"));
+            _appCts = appCts;
         }
 
         public void SetupExecutor(CommandExecutor executor)
@@ -26,68 +27,117 @@ namespace Agent
             _executor = executor;
         }
 
-        public async Task ConnectAndListenAsync(CancellationToken cancellationToken)
+        public async Task ConnectAndListenAsync()
         {
+            // Lấy Token Hủy từ field đã lưu trữ (để kiểm soát vòng đời)
+            CancellationToken cancellationToken = _appCts.Token;
+
             // Vòng lặp chính: Đảm bảo Agent luôn cố gắng kết nối lại nếu bị rớt mạng
             while (!cancellationToken.IsCancellationRequested)
             {
+                try
                 {
-                    // Cố gắng kết nối
-                    try
+                    Console.WriteLine("[AGENT] Đang cố gắng kết nối...");
+
+                    // 1. Khởi tạo Client WebSocket
+                    _client = new ClientWebSocket();
+
+                    // 2. Kết nối tới Server (Sử dụng token nội bộ)
+                    await _client.ConnectAsync(_serverUri, cancellationToken);
+
+                    Console.WriteLine($"[AGENT] Đã kết nối thành công tới {_serverUri}");
+
+                    // 3. Làm ấm bộ đệm mạng
+                    await WarmUpNetworkBuffer();
+
+                    // Khởi tạo buffer nhận dữ liệu
+                    byte[] buffer = new byte[1024 * 4];
+
+                    // 4. Vòng lặp lắng nghe chính
+                    while (_client.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
                     {
-                        _client = new ClientWebSocket();
-                        await _client.ConnectAsync(_serverUri, cancellationToken);
-                        Console.WriteLine($"[AGENT] Đã kết nối thành công tới {_serverUri}");
+                        WebSocketReceiveResult result;
 
-                        byte[] buffer = new byte[1024 * 4];
-
-                        //Gửi 1 gói tin nhỏ để cho bộ đệm sẵn sàng
-                        await WarmUpNetworkBuffer();
-
-                        if (_client == null) throw new Exception("Kết nối rỗng");
-                        while (_client.State == WebSocketState.Open)
+                        try
                         {
-                            var result = await _client.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
+                            // Chờ nhận dữ liệu từ Server (Sử dụng token nội bộ)
+                            result = await _client.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            // Token bị hủy, thoát vòng lặp lắng nghe
+                            break;
+                        }
+                        catch (WebSocketException)
+                        {
+                            // Lỗi mạng, thoát vòng lặp
+                            break;
+                        }
 
-                            if (result.MessageType == WebSocketMessageType.Close)
+                        // Xử lý loại tin nhắn đóng
+                        if (result.MessageType == WebSocketMessageType.Close)
+                        {
+                            Console.WriteLine($"[AGENT] Server đã gửi lệnh đóng kết nối: {result.CloseStatusDescription}");
+                            await CloseConnectionAsync();
+                            break;
+                        }
+
+                        // Xử lý tin nhắn văn bản (Lệnh)
+                        if (result.MessageType == WebSocketMessageType.Text)
+                        {
+                            string receivedMessage = Encoding.UTF8.GetString(buffer, 0, result.Count);
+
+                            try
                             {
-                                await _client.CloseAsync(WebSocketCloseStatus.NormalClosure, "Được yêu cầu đóng kết nối", cancellationToken);
-                                _client = null;
+                                RemoteCommand command = CommandJson.FromJson(receivedMessage);
+                                Console.WriteLine($"[AGENT] Nhận lệnh từ Server: {command.Name}");
+
+                                // Thực thi lệnh (Sử dụng token nội bộ)
+                                await _executor.Execute(command, cancellationToken);
                             }
-
-                            if (result.MessageType == WebSocketMessageType.Text)
+                            catch (InvalidOperationException ex)
                             {
-                                string receivedMessage = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                                //Gửi lệnh cho executor
-                                var x = CommandJson.FromJson(receivedMessage);
-                                Console.WriteLine($"[AGENT] Nhận lệnh từ Server: {x.Name}");
-                                try
-                                {
-                                    RemoteCommand command = CommandJson.FromJson(receivedMessage);
-                                    await _executor.Execute(command, cancellationToken);
-                                }
-                                catch (InvalidOperationException ex)
-                                {
-                                    Console.WriteLine($"[AGENT] Lỗi dịch lệnh JSON: Chuỗi không hợp lệ: {ex.Message}");
-                                }
-                                catch (Exception ex)
-                                {
-                                    Console.WriteLine($"[AGENT] Lỗi dịch lệnh JSON: {ex.Message}");
-                                }
-                                //
+                                Console.WriteLine($"[AGENT] Lỗi dịch lệnh JSON: {ex.Message}");
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"[AGENT] Lỗi xử lý lệnh: {ex.Message}");
                             }
                         }
-                    }
-                    catch (Exception ex)
+                    } // Kết thúc vòng lặp lắng nghe
+
+                    // 5. Nếu vòng lặp thoát mà KHÔNG phải do yêu cầu hủy ứng dụng (Agent bị rớt mạng)
+                    if (!cancellationToken.IsCancellationRequested)
                     {
-                        // Nếu lỗi, log và chờ 5 giây trước khi thử lại
-                        Console.WriteLine($"Lỗi kết nối: {ex.Message}. Thử lại sau 5 giây...");
+                        await CloseConnectionAsync();
+
+                        Console.WriteLine("[AGENT] Kết nối bị mất. Thử lại sau 5 giây...");
+                        // Dùng Task.Delay với token để có thể hủy trong lúc chờ
                         await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
                     }
-                    //Nhận dữ liệu
-
                 }
-            }
+                catch (OperationCanceledException)
+                {
+                    // Bắt ngoại lệ khi vòng lặp ngoài cùng bị hủy
+                    Console.WriteLine("[AGENT] Nhận tín hiệu hủy. Thoát vòng lặp chính.");
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    // Lỗi kết nối ban đầu (VD: Server chưa chạy)
+                    Console.WriteLine($"Lỗi kết nối: {ex.Message}. Thử lại sau 5 giây...");
+                    // Dùng Task.Delay với token
+                    await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+                }
+                finally
+                {
+                    // 6. Đảm bảo giải phóng tài nguyên sau cùng
+                    if (_client != null)
+                    {
+                        await CloseConnectionAsync();
+                    }
+                }
+            } // Kết thúc vòng lặp while (!cancellationToken.IsCancellationRequested)
         }
 
         public async Task SendData(object data, CancellationToken cancellation)
@@ -134,6 +184,51 @@ namespace Agent
                 {
                     Console.WriteLine($"[Warm-up Error] {ex.Message}");
                 }
+            }
+        }
+
+        public void RequestShutdown()
+        {
+            if (!_appCts.IsCancellationRequested)
+            {
+                Console.WriteLine("[AGENT] Nhận lệnh Shutdown. Kích hoạt hủy ứng dụng...");
+                _appCts.Cancel(); // Kích hoạt lệnh hủy toàn ứng dụng
+            }
+        }
+
+        // AgentNetworkClient.cs (Thêm vào lớp)
+
+        private async Task CloseConnectionAsync()
+        {
+            if (_client != null &&
+                (_client.State == WebSocketState.Open || _client.State == WebSocketState.CloseSent))
+            {
+                try
+                {
+                    // Đóng kết nối WebSocket một cách duyên dáng (Dùng CancellationToken.None để đảm bảo nó hoàn thành)
+                    await _client.CloseAsync(
+                        WebSocketCloseStatus.NormalClosure,
+                        "Agent shutting down",
+                        CancellationToken.None
+                    );
+                    Console.WriteLine("[AGENT] Kết nối WebSocket đã đóng an toàn.");
+                }
+                catch (WebSocketException ex)
+                {
+                    Console.WriteLine($"[AGENT CLOSE ERROR] Lỗi khi đóng kết nối: {ex.Message}");
+                }
+                finally
+                {
+                    // Đảm bảo đối tượng được giải phóng
+                    _client.Dispose();
+                    _client = null;
+                }
+            }
+            else if (_client != null && _client.State != WebSocketState.None)
+            {
+                // Nếu ở trạng thái đóng/lỗi, vẫn giải phóng tài nguyên
+                _client.Dispose();
+                _client = null;
             }
         }
     }

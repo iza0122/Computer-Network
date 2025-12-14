@@ -8,7 +8,7 @@ Console.OutputEncoding = Encoding.UTF8;
 string URL = "ws://localhost:5000/agent";
 
 var cts = new CancellationTokenSource();
-var agent = new Agent.AgentNetworkClient(URL);
+var agent = new Agent.AgentNetworkClient(URL, cts);
 var executor = new CommandExecutor(agent);
 agent.SetupExecutor(executor);
 
@@ -19,11 +19,17 @@ Console.CancelKeyPress += (s, e) =>
     cts.Cancel();
 };
 
-Task task = agent.ConnectAndListenAsync(cts.Token);
+Task task = agent.ConnectAndListenAsync();
 
-// Chờ vô hạn cho đến khi cts.Cancel() được gọi
-await Task.Delay(Timeout.InfiniteTimeSpan, cts.Token);
+// Program.cs - Sửa lỗi bằng cách chỉ giữ lại OperationCanceledException
 
+try
+{
+    // Chờ vô hạn cho đến khi cts.Cancel() được gọi
+    await Task.Delay(Timeout.InfiniteTimeSpan, cts.Token);
+}
+catch (OperationCanceledException) // CHỈ CẦN DÒNG NÀY LÀ ĐỦ
+{
+    Console.WriteLine("[MAIN] Nhận tín hiệu hủy từ Console. Đang tiến hành đóng Server...");
+}
 await task;
-
-Console.WriteLine("Agent đã tắt an toàn.");
