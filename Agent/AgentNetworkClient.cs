@@ -59,6 +59,8 @@ namespace Agent
                             {
                                 string receivedMessage = Encoding.UTF8.GetString(buffer, 0, result.Count);
                                 //Gửi lệnh cho executor
+                                var x = CommandJson.FromJson(receivedMessage);
+                                Console.WriteLine($"[AGENT] Nhận lệnh từ Server: {x.Name}");
                                 try
                                 {
                                     RemoteCommand command = CommandJson.FromJson(receivedMessage);
@@ -73,7 +75,6 @@ namespace Agent
                                     Console.WriteLine($"[AGENT] Lỗi dịch lệnh JSON: {ex.Message}");
                                 }
                                 //
-                                Console.WriteLine($"[AGENT] Nhận lệnh từ Server: {receivedMessage}");
                             }
                         }
                     }

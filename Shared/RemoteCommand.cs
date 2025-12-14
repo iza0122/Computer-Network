@@ -46,6 +46,7 @@ namespace Shared
     public enum AgentCommandType
     {
        None,
+       Exit,
        Shutdown,
        Restart,
        Capture,
