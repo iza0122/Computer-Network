@@ -47,12 +47,13 @@ namespace Agent
         private void ExecuteShutdown()
         {
             Console.WriteLine("[Executor] Thực thi: Tắt máy");
-            // System.Diagnostics.Process.Start("shutdown", "/s /t 0");
+            Functions.SystemController.Shutdown();
         }  
 
         private void ExecuteRestart()
         {
             Console.WriteLine("[Executor] Thực thi: Bật lại máy");
+            Functions.SystemController.Restart();
         }
 
         private async Task ExecuteCapture(CancellationToken cancellationToken)
