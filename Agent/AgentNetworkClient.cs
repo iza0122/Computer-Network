@@ -29,7 +29,6 @@ namespace Agent
 
         public async Task ConnectAndListenAsync()
         {
-            // Lấy Token Hủy từ field đã lưu trữ (để kiểm soát vòng đời)
             CancellationToken cancellationToken = _appCts.Token;
 
             // Vòng lặp chính: Đảm bảo Agent luôn cố gắng kết nối lại nếu bị rớt mạng
@@ -39,15 +38,15 @@ namespace Agent
                 {
                     Console.WriteLine("[AGENT] Đang cố gắng kết nối...");
 
-                    // 1. Khởi tạo Client WebSocket
+                    //Khởi tạo Client WebSocket
                     _client = new ClientWebSocket();
 
-                    // 2. Kết nối tới Server (Sử dụng token nội bộ)
+                    //Kết nối tới Server (Sử dụng token nội bộ)
                     await _client.ConnectAsync(_serverUri, cancellationToken);
 
                     Console.WriteLine($"[AGENT] Đã kết nối thành công tới {_serverUri}");
 
-                    // 3. Làm ấm bộ đệm mạng
+                    //Làm ấm bộ đệm mạng
                     await WarmUpNetworkBuffer();
 
                     // Khởi tạo buffer nhận dữ liệu
@@ -60,17 +59,15 @@ namespace Agent
 
                         try
                         {
-                            // Chờ nhận dữ liệu từ Server (Sử dụng token nội bộ)
+                            // Chờ nhận dữ liệu từ Server
                             result = await _client.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
                         }
                         catch (OperationCanceledException)
                         {
-                            // Token bị hủy, thoát vòng lặp lắng nghe
                             break;
                         }
                         catch (WebSocketException)
                         {
-                            // Lỗi mạng, thoát vòng lặp
                             break;
                         }
 
@@ -104,9 +101,9 @@ namespace Agent
                                 Console.WriteLine($"[AGENT] Lỗi xử lý lệnh: {ex.Message}");
                             }
                         }
-                    } // Kết thúc vòng lặp lắng nghe
+                    }
 
-                    // 5. Nếu vòng lặp thoát mà KHÔNG phải do yêu cầu hủy ứng dụng (Agent bị rớt mạng)
+                    //Nếu vòng lặp thoát mà KHÔNG phải do yêu cầu hủy ứng dụng (VD: Agent bị rớt mạng)
                     if (!cancellationToken.IsCancellationRequested)
                     {
                         await CloseConnectionAsync();
@@ -118,7 +115,6 @@ namespace Agent
                 }
                 catch (OperationCanceledException)
                 {
-                    // Bắt ngoại lệ khi vòng lặp ngoài cùng bị hủy
                     Console.WriteLine("[AGENT] Nhận tín hiệu hủy. Thoát vòng lặp chính.");
                     break;
                 }
@@ -126,18 +122,16 @@ namespace Agent
                 {
                     // Lỗi kết nối ban đầu (VD: Server chưa chạy)
                     Console.WriteLine($"Lỗi kết nối: {ex.Message}. Thử lại sau 5 giây...");
-                    // Dùng Task.Delay với token
                     await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
                 }
                 finally
                 {
-                    // 6. Đảm bảo giải phóng tài nguyên sau cùng
                     if (_client != null)
                     {
                         await CloseConnectionAsync();
                     }
                 }
-            } // Kết thúc vòng lặp while (!cancellationToken.IsCancellationRequested)
+            }
         }
 
         public async Task SendData(object data, CancellationToken cancellation)
@@ -186,18 +180,14 @@ namespace Agent
                 }
             }
         }
-
         public void RequestShutdown()
         {
             if (!_appCts.IsCancellationRequested)
             {
-                Console.WriteLine("[AGENT] Nhận lệnh Shutdown. Kích hoạt hủy ứng dụng...");
+                Console.WriteLine("[AGENT] Nhận lệnh Shutdown");
                 _appCts.Cancel(); // Kích hoạt lệnh hủy toàn ứng dụng
             }
         }
-
-        // AgentNetworkClient.cs (Thêm vào lớp)
-
         private async Task CloseConnectionAsync()
         {
             if (_client != null &&
@@ -205,7 +195,7 @@ namespace Agent
             {
                 try
                 {
-                    // Đóng kết nối WebSocket một cách duyên dáng (Dùng CancellationToken.None để đảm bảo nó hoàn thành)
+                    // Đóng kết nối WebSocket
                     await _client.CloseAsync(
                         WebSocketCloseStatus.NormalClosure,
                         "Agent shutting down",
@@ -219,7 +209,6 @@ namespace Agent
                 }
                 finally
                 {
-                    // Đảm bảo đối tượng được giải phóng
                     _client.Dispose();
                     _client = null;
                 }
