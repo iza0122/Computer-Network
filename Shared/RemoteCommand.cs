@@ -51,7 +51,12 @@ namespace Shared
        Restart,
        Capture,
        StartApp,
+       ListRunningApp,
+       ListInstalledApp,
+       StopApp,
+       ListRunningTask,
        StartTask,
+       StopTask,
        Webcam
     }
 
