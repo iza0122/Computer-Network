@@ -134,45 +134,31 @@ namespace Agent
             }
         }
 
-        public async Task SendData(object data, CancellationToken cancellation)
+        public async Task SendEncodedResponseAsync(WebSocket socket, MessageType type, byte[] data)
         {
-            if (_client == null || _client.State != WebSocketState.Open)
-            {
-                Console.WriteLine("[AGENT] Không thể gửi phản hồi: Mất kết nối.");
-                return;
-            }
+            if (socket == null || socket.State != WebSocketState.Open) return;
 
-            byte[] buffer;
-            WebSocketMessageType messageType;
+            // Tạo mảng mới: [Byte mã hóa] + [Dữ liệu gốc]
+            byte[] payload = new byte[data.Length + 1];
+            payload[0] = (byte)type;
+            Buffer.BlockCopy(data, 0, payload, 1, data.Length);
 
-            if (data is byte[] binarydata) //Nếu vật cần gửi là dữ liệu nhị phân VD: Hình, video, ...
-            {
-                messageType = WebSocketMessageType.Binary;
-                buffer = binarydata;
-            }
-            else //Nếu vật cần gửi là text
-            {
-                string json = CommandJson.ToJson(new RemoteCommand { Name = "Response", Data = data });
-                buffer = Encoding.UTF8.GetBytes(json);
-                messageType = WebSocketMessageType.Text;
-            }
-
-            await _client.SendAsync(new ArraySegment<byte>(buffer), messageType, true, cancellation);
+            await socket.SendAsync(
+                new ArraySegment<byte>(payload),
+                WebSocketMessageType.Binary, // Luôn dùng Binary khi đã đóng gói thủ công
+                true,
+                CancellationToken.None
+            );
         }
         public async Task WarmUpNetworkBuffer()
         {
             // Gửi một gói tin nhỏ để khởi tạo và làm ấm bộ đệm mạng
-            byte[] data = System.Text.Encoding.UTF8.GetBytes("READY");
             if (_client.State == WebSocketState.Open)
             {
                 try
                 {
-                    await _client.SendAsync(
-                        new ArraySegment<byte>(data),
-                        System.Net.WebSockets.WebSocketMessageType.Text,
-                        endOfMessage: true,
-                        CancellationToken.None
-                    );
+                    byte[] data = Encoding.UTF8.GetBytes("READY");
+                    await SendEncodedResponseAsync(_client, MessageType.Text, data);
                 }
                 catch (Exception ex)
                 {

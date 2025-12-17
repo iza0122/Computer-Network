@@ -64,4 +64,12 @@ namespace Shared
     {
         Task SendData(object data, CancellationToken cancellationToken);
     }
+
+    public enum MessageType : byte
+    {
+        Image = 0,
+        Text = 1,
+        Video = 2,
+        Json = 3
+    }
 }
