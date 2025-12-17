@@ -89,7 +89,6 @@ namespace Agent
                                 RemoteCommand command = CommandJson.FromJson(receivedMessage);
                                 Console.WriteLine($"[AGENT] Nhận lệnh từ Server: {command.Name}");
 
-                                // Thực thi lệnh (Sử dụng token nội bộ)
                                 await _executor.Execute(command, cancellationToken);
                             }
                             catch (InvalidOperationException ex)
@@ -103,13 +102,11 @@ namespace Agent
                         }
                     }
 
-                    //Nếu vòng lặp thoát mà KHÔNG phải do yêu cầu hủy ứng dụng (VD: Agent bị rớt mạng)
                     if (!cancellationToken.IsCancellationRequested)
                     {
                         await CloseConnectionAsync();
 
                         Console.WriteLine("[AGENT] Kết nối bị mất. Thử lại sau 5 giây...");
-                        // Dùng Task.Delay với token để có thể hủy trong lúc chờ
                         await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
                     }
                 }
@@ -120,7 +117,6 @@ namespace Agent
                 }
                 catch (Exception ex)
                 {
-                    // Lỗi kết nối ban đầu (VD: Server chưa chạy)
                     Console.WriteLine($"Lỗi kết nối: {ex.Message}. Thử lại sau 5 giây...");
                     await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
                 }
@@ -134,21 +130,37 @@ namespace Agent
             }
         }
 
-        public async Task SendEncodedResponseAsync(WebSocket socket, MessageType type, byte[] data)
+        public async Task SendEncodedResponseAsync(MessageType type, byte[] data, CancellationToken cancellationToken)
         {
-            if (socket == null || socket.State != WebSocketState.Open) return;
+            //Kiểm tra trạng thái kết nối
+            if (_client == null || _client.State != WebSocketState.Open)
+            {
+                Console.WriteLine($"[AGENT] Gửi thất bại ({type}): Socket không sẵn sàng.");
+                return;
+            }
 
-            // Tạo mảng mới: [Byte mã hóa] + [Dữ liệu gốc]
-            byte[] payload = new byte[data.Length + 1];
-            payload[0] = (byte)type;
-            Buffer.BlockCopy(data, 0, payload, 1, data.Length);
+            //Kiểm tra dữ liệu rỗng
+            data ??= Array.Empty<byte>();
 
-            await socket.SendAsync(
-                new ArraySegment<byte>(payload),
-                WebSocketMessageType.Binary, // Luôn dùng Binary khi đã đóng gói thủ công
-                true,
-                CancellationToken.None
-            );
+            try
+            {
+                //Đóng gói dữ liệu
+                byte[] payload = new byte[data.Length + 1];
+                payload[0] = (byte)type;
+                Buffer.BlockCopy(data, 0, payload, 1, data.Length);
+
+                //Gửi dữ liệu
+                await _client.SendAsync(
+                    new ArraySegment<byte>(payload),
+                    WebSocketMessageType.Binary,
+                    endOfMessage: true,
+                    cancellationToken: cancellationToken
+                );
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[AGENT SEND ERROR] {type}: {ex.Message}");
+            }
         }
         public async Task WarmUpNetworkBuffer()
         {
@@ -158,7 +170,7 @@ namespace Agent
                 try
                 {
                     byte[] data = Encoding.UTF8.GetBytes("READY");
-                    await SendEncodedResponseAsync(_client, MessageType.Text, data);
+                    await SendEncodedResponseAsync(MessageType.Text, data, CancellationToken.None);
                 }
                 catch (Exception ex)
                 {

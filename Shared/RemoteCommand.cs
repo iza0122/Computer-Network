@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Net.WebSockets;
+using System.Text.Json;
 
 namespace Shared
 {
@@ -62,7 +63,7 @@ namespace Shared
 
     public interface IResponseSender
     {
-        Task SendData(object data, CancellationToken cancellationToken);
+        Task SendEncodedResponseAsync(MessageType type, byte[] data, CancellationToken cancellationToken);
     }
 
     public enum MessageType : byte
