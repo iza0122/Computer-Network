@@ -130,7 +130,7 @@ namespace Agent
             }
         }
 
-        public async Task SendEncodedResponseAsync(MessageType type, byte[] data, CancellationToken cancellationToken)
+        public async Task SendData(MessageType type, byte[] data, CancellationToken cancellationToken)
         {
             //Kiểm tra trạng thái kết nối
             if (_client == null || _client.State != WebSocketState.Open)
@@ -162,6 +162,22 @@ namespace Agent
                 Console.WriteLine($"[AGENT SEND ERROR] {type}: {ex.Message}");
             }
         }
+
+        public async Task SendText(string message, CancellationToken ct)
+        {
+            byte[] buffer = Encoding.UTF8.GetBytes(message);
+            await SendData(MessageType.Text, buffer, ct);
+        }
+
+        public async Task SendStatus(bool isSuccess, string message, CancellationToken ct)
+        {
+            byte[] msgBytes = Encoding.UTF8.GetBytes(message);
+            byte[] buffer = new byte[msgBytes.Length + 1];
+            buffer[0] = (byte)(isSuccess ? 1 : 0);
+            Buffer.BlockCopy(msgBytes, 0, buffer, 1, msgBytes.Length);
+            await SendData(MessageType.Status, buffer, ct);
+        }
+
         public async Task WarmUpNetworkBuffer()
         {
             // Gửi một gói tin nhỏ để khởi tạo và làm ấm bộ đệm mạng
@@ -170,7 +186,7 @@ namespace Agent
                 try
                 {
                     byte[] data = Encoding.UTF8.GetBytes("READY");
-                    await SendEncodedResponseAsync(MessageType.Text, data, CancellationToken.None);
+                    await SendData(MessageType.Text, data, CancellationToken.None);
                 }
                 catch (Exception ex)
                 {

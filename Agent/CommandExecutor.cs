@@ -7,21 +7,29 @@ namespace Agent
     public class CommandExecutor
     {
         private IResponseSender _responseSender;
-        public CommandExecutor(IResponseSender responseSender) {  _responseSender = responseSender; }
-        public async Task Execute(RemoteCommand command , CancellationToken cancellationToken)
+        private ApplicationManager _appManager;
+        private TaskManager _taskManager;
+
+        public CommandExecutor(IResponseSender responseSender)
         {
-            // 1. Chuyển chuỗi Name (string) sang enum an toàn
+            _responseSender = responseSender;
+            _appManager = new ApplicationManager();
+            _taskManager = new TaskManager();
+        }
+
+        public async Task Execute(RemoteCommand command, CancellationToken cancellationToken)
+        {
             if (!Enum.TryParse(command.Name, true, out AgentCommandType commandType))
             {
-                Console.WriteLine($"[Executor] Lệnh không hợp lệ: {command.Name}");
+                Console.WriteLine($"[EXECUTOR] Lệnh không hợp lệ: {command.Name}");
                 return;
             }
+
             switch (commandType)
             {
                 case AgentCommandType.Shutdown:
                     ExecuteShutdown();
                     break;
-
                 case AgentCommandType.Restart:
                     ExecuteRestart();
                     break;
@@ -32,64 +40,61 @@ namespace Agent
                     await ExecuteListInstalledApp(cancellationToken);
                     break;
                 case AgentCommandType.StartApp:
-                    ExecuteStartApp(command.Data);
+                    await ExecuteStartApp(command.Data, cancellationToken);
                     break;
                 case AgentCommandType.StopApp:
-                    ExecuteStopApp(command.Data);
+                    await ExecuteStopApp(command.Data, cancellationToken);
                     break;
                 case AgentCommandType.StartTask:
-                    ExecuteStartTask();
+                    await ExecuteStartTask(command.Data, cancellationToken);
                     break;
-                case AgentCommandType.Webcam:
-                    ExecuteWebcam();
+                case AgentCommandType.ListRunningTask:
+                    await ExecuteListTask(cancellationToken);
                     break;
-
+                case AgentCommandType.StopTask:
+                    await ExecuteStopTask(command.Data, cancellationToken);
+                    break;
                 default:
-                    Console.WriteLine($"[Executor] Lệnh '{commandType}' không được hỗ trợ.");
+                    Console.WriteLine($"[EXECUTOR] Cảnh báo: Lệnh '{commandType}' hiện chưa được hỗ trợ hệ thống.");
                     break;
             }
         }
 
-        // Hàm xử lý cụ thể
         private void ExecuteShutdown()
         {
-            Console.WriteLine("[Executor] Thực thi: Tắt máy");
+            Console.WriteLine("[SYSTEM] Đang thực hiện lệnh tắt máy...");
             Functions.SystemController.Shutdown();
-        }  
+        }
 
         private void ExecuteRestart()
         {
-            Console.WriteLine("[Executor] Thực thi: Bật lại máy");
+            Console.WriteLine("[SYSTEM] Đang thực hiện lệnh khởi động lại máy...");
             Functions.SystemController.Restart();
         }
 
         private async Task ExecuteCapture(CancellationToken cancellationToken)
         {
-            Console.WriteLine("[Executor] Thực thi: Chụp màn hình");
+            Console.WriteLine("[ACTION] Đang tiến hành chụp màn hình...");
             byte[]? imageBuffer = Functions.ScreenCapture.CaptureScreenToBytes();
 
             if (imageBuffer == null || imageBuffer.Length == 0)
             {
-                string errorMsg = "[ERROR] Chụp ảnh thất bại. Kiểm tra quyền truy cập/thư viện System.Drawing.";
-                await _responseSender.SendData(errorMsg, cancellationToken);
-                Console.WriteLine(errorMsg);
+                string errorMsg = "Lỗi: Không thể chụp ảnh màn hình (Kiểm tra quyền truy cập hoặc thư viện đồ họa).";
+                await _responseSender.SendStatus(false, errorMsg, cancellationToken);
+                Console.WriteLine($"[ERROR] {errorMsg}");
+                return;
             }
 
             try
             {
-                await _responseSender.SendData(imageBuffer, cancellationToken);
-                string successMsg = $"[OK] Chụp ảnh thành công. Kích thước: {imageBuffer.Length} bytes.";
-                await _responseSender.SendData(successMsg, cancellationToken);
-
-                Console.WriteLine(successMsg);
-            }
-            catch (TaskCanceledException)
-            {
-                Console.WriteLine("[Executor] Tác vụ gửi phản hồi đã bị hủy.");
+                await _responseSender.SendData(MessageType.Image, imageBuffer, cancellationToken);
+                string successMsg = "Đã gửi ảnh chụp màn hình thành công.";
+                await _responseSender.SendStatus(true, successMsg, cancellationToken);
+                Console.WriteLine($"[SUCCESS] {successMsg} ({imageBuffer.Length} bytes)");
             }
             catch (Exception ex)
             {
-                await _responseSender.SendData($"[ERROR] Lỗi gửi ảnh: {ex.Message}", cancellationToken);
+                await _responseSender.SendStatus(false, $"Lỗi truyền tải ảnh: {ex.Message}", cancellationToken);
             }
         }
 
@@ -97,118 +102,169 @@ namespace Agent
         {
             try
             {
-                Console.WriteLine("[Executor] Thực thi: Gửi danh sách ứng dụng đã cài đặt");
+                Console.WriteLine("[QUERY] Đang lấy danh sách ứng dụng đã cài đặt...");
                 var tempList = Functions.ApplicationManager.InstalledAppInfo.ListInstalledApps();
 
                 if (tempList == null || tempList.Count == 0)
                 {
-                    Console.WriteLine("[Executor] Không tìm thấy ứng dụng nào.");
+                    string msg = "Không tìm thấy dữ liệu ứng dụng nào trên hệ thống.";
+                    Console.WriteLine($"[INFO] {msg}");
+                    await _responseSender.SendStatus(false, msg, cancellationToken);
                     return;
                 }
 
-                string jsonData = System.Text.Json.JsonSerializer.Serialize(new
+                string jsonData = JsonSerializer.Serialize(new
                 {
-                    Type = "InstalledAppList",
+                    Type = "INSTALLED_APP_LIST",
                     Timestamp = DateTime.Now,
                     Data = tempList
                 });
 
-                await _responseSender.SendData(jsonData, cancellationToken);
-
-                Console.WriteLine($"[Executor] Đã gửi thông tin của {tempList.Count} ứng dụng.");
+                await _responseSender.SendText(jsonData, cancellationToken);
+                await _responseSender.SendStatus(true, $"Đã gửi danh sách {tempList.Count} ứng dụng.", cancellationToken);
+                Console.WriteLine($"[SUCCESS] Đã gửi thông tin của {tempList.Count} ứng dụng.");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Executor] Lỗi khi gửi dữ liệu: {ex.Message}");
+                string msg = $"Lỗi khi truy xuất danh sách ứng dụng: {ex.Message}";
+                await _responseSender.SendStatus(false, msg, cancellationToken);
+                Console.WriteLine($"[ERROR] {msg}");
             }
         }
 
-        private void ExecuteStartApp(object data)
+        private async Task ExecuteStartApp(object data, CancellationToken cancellationToken)
         {
-            Console.WriteLine("[Executor] Thực thi: Chạy ứng dụng");
-
             if (data is JsonElement element)
             {
                 try
                 {
-                    // Lấy đường dẫn
                     string? executablePath = element.GetProperty("Path").GetString();
-                    string arguments = "";
+                    string arguments = element.TryGetProperty("Arguments", out JsonElement arg) ? arg.GetString() ?? "" : "";
 
-                    // Lấy tham số
-                    if (element.TryGetProperty("Arguments", out JsonElement argElement))
+                    if (string.IsNullOrEmpty(executablePath))
                     {
-                        arguments = argElement.GetString() ?? "";
+                        await _responseSender.SendStatus(false, "Đường dẫn ứng dụng không được để trống.", cancellationToken);
+                        return;
                     }
 
-                    if (!string.IsNullOrEmpty(executablePath))
-                    {
-                        var appManager = new ApplicationManager();
-                        bool success = appManager.StartApplication(executablePath, arguments);
+                    Console.WriteLine($"[ACTION] Đang khởi chạy ứng dụng: {executablePath}");
+                    bool success = _appManager.StartApplication(executablePath, arguments);
 
-                        if (success)
-                            Console.WriteLine($"[Executor] Đã khởi chạy thành công: {executablePath}");
-                        else
-                            Console.WriteLine($"[Executor] Khởi chạy thất bại: {executablePath}");
-                    }
-                }
-                catch (KeyNotFoundException)
-                {
-                    Console.WriteLine("[Executor] Lỗi: Thiếu thuộc tính 'Path' trong dữ liệu.");
+                    string statusMsg = success ? "Khởi chạy ứng dụng thành công." : "Không thể khởi chạy ứng dụng (Kiểm tra đường dẫn).";
+                    await _responseSender.SendStatus(success, statusMsg, cancellationToken);
+                    Console.WriteLine($"[{(success ? "SUCCESS" : "FAIL")}] {statusMsg}");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[Executor] Lỗi xử lý dữ liệu: {ex.Message}");
+                    await _responseSender.SendStatus(false, $"Lỗi xử lý lệnh StartApp: {ex.Message}", cancellationToken);
                 }
-            }
-            else
-            {
-                Console.WriteLine("[Executor] Lỗi: Dữ liệu đầu vào không phải là JsonElement hợp lệ");
             }
         }
 
-        private void ExecuteStopApp(object data)
+        private async Task ExecuteStopApp(object data, CancellationToken ct)
         {
-            Console.WriteLine("[Executor] Thực thi: Đóng ứng dụng");
-
             if (data is JsonElement element)
             {
                 try
                 {
-                    
-                    //Lấy ID ứng dụng
-                    int ID = element.GetProperty("ID").GetInt32();
-                    var appManager = new ApplicationManager();
-                    bool success = appManager.StopApplication(ID);
+                    if (!element.TryGetProperty("ID", out JsonElement idElement))
+                    {
+                        await _responseSender.SendStatus(false, "Thiếu mã định danh (ID) ứng dụng để đóng.", ct);
+                        return;
+                    }
 
-                    if (success)
-                            Console.WriteLine($"[Executor] Đã dừng thành công");
-                    else
-                            Console.WriteLine($"[Executor] Dừng thất bại");
-                }
-                catch (KeyNotFoundException)
-                {
-                    Console.WriteLine("[Executor] Lỗi: Thiếu thuộc tính 'ID' trong dữ liệu.");
+                    int id = idElement.GetInt32();
+                    Console.WriteLine($"[ACTION] Đang đóng ứng dụng ID: {id}");
+                    bool success = _appManager.StopApplication(id);
+
+                    string msg = success ? $"Đã đóng thành công ứng dụng (PID: {id})." : $"Thất bại khi đóng ứng dụng (PID: {id}).";
+                    await _responseSender.SendStatus(success, msg, ct);
+                    Console.WriteLine($"[{(success ? "SUCCESS" : "FAIL")}] {msg}");
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[Executor] Lỗi xử lý dữ liệu: {ex.Message}");
+                    await _responseSender.SendStatus(false, $"Lỗi hệ thống khi đóng ứng dụng: {ex.Message}", ct);
                 }
             }
-            else
+        }
+
+        private async Task ExecuteListTask(CancellationToken cancellationToken)
+        {
+            try
             {
-                Console.WriteLine("[Executor] Lỗi: Dữ liệu đầu vào không phải là JsonElement hợp lệ");
+                Console.WriteLine("[QUERY] Đang lấy danh sách các tác vụ đang chạy...");
+                var processes = _taskManager.ListProcesses();
+
+                string jsonData = JsonSerializer.Serialize(new
+                {
+                    Type = "TASK_LIST",
+                    Timestamp = DateTime.Now,
+                    Data = processes
+                });
+
+                await _responseSender.SendText(jsonData, cancellationToken);
+                await _responseSender.SendStatus(true, $"Đã gửi danh sách {processes.Count} tác vụ.", cancellationToken);
+                Console.WriteLine($"[SUCCESS] Tìm thấy {processes.Count} tác vụ đang hoạt động.");
+            }
+            catch (Exception ex)
+            {
+                await _responseSender.SendStatus(false, $"Lỗi khi lấy danh sách tác vụ: {ex.Message}", cancellationToken);
             }
         }
 
-        private void ExecuteStartTask()
+        private async Task ExecuteStartTask(object data, CancellationToken cancellationToken)
         {
-            Console.WriteLine("[Executor] Thực thi: Chạy tác vụ");
+            if (data is JsonElement element)
+            {
+                try
+                {
+                    string? path = element.TryGetProperty("Path", out var p) ? p.GetString() : null;
+                    if (string.IsNullOrEmpty(path))
+                    {
+                        await _responseSender.SendStatus(false, "Cần đường dẫn (Path) để khởi chạy tác vụ.", cancellationToken);
+                        return;
+                    }
+
+                    Console.WriteLine($"[ACTION] Đang tạo tác vụ mới: {path}");
+                    bool success = _taskManager.StartProcessByName(path);
+
+                    string msg = success ? "Khởi chạy tác vụ thành công." : "Khởi chạy tác vụ thất bại.";
+                    await _responseSender.SendStatus(success, msg, cancellationToken);
+                    Console.WriteLine($"[{(success ? "SUCCESS" : "FAIL")}] {msg}");
+                }
+                catch (Exception ex)
+                {
+                    await _responseSender.SendStatus(false, $"Lỗi khởi chạy tác vụ: {ex.Message}", cancellationToken);
+                }
+            }
         }
 
-        private void ExecuteWebcam()
+        private async Task ExecuteStopTask(object data, CancellationToken cancellationToken)
         {
-            Console.WriteLine("[Executor] Thực thi: Đã bật Webcam");
+            if (data is JsonElement element)
+            {
+                try
+                {
+                    if (element.TryGetProperty("ID", out JsonElement idElement))
+                    {
+                        int pid = idElement.GetInt32();
+                        Console.WriteLine($"[ACTION] Đang dừng tác vụ ID: {pid}");
+                        bool success = _taskManager.StopProcessById(pid);
+
+                        string msg = success ? $"Đã dừng tác vụ {pid} thành công." : $"Không thể dừng tác vụ {pid} (Có thể tiến trình không tồn tại).";
+                        await _responseSender.SendStatus(success, msg, cancellationToken);
+                        Console.WriteLine($"[{(success ? "SUCCESS" : "FAIL")}] {msg}");
+                    }
+                    else
+                    {
+                        await _responseSender.SendStatus(false, "Vui lòng cung cấp ID tác vụ.", cancellationToken);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    await _responseSender.SendStatus(false, $"Lỗi khi dừng tác vụ: {ex.Message}", cancellationToken);
+                }
+            }
         }
     }
 }

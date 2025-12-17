@@ -63,7 +63,10 @@ namespace Shared
 
     public interface IResponseSender
     {
-        Task SendEncodedResponseAsync(MessageType type, byte[] data, CancellationToken cancellationToken);
+        Task SendData(MessageType header, byte[] data, CancellationToken ct);
+        Task SendText(string message, CancellationToken ct);
+        Task SendStatus(bool isSuccess, string message, CancellationToken ct);
+
     }
 
     public enum MessageType : byte
@@ -71,6 +74,7 @@ namespace Shared
         Image = 0,
         Text = 1,
         Video = 2,
-        Json = 3
+        Json = 3,
+        Status = 4
     }
 }
