@@ -1,6 +1,7 @@
 ﻿using Agent.Functions;
 using Shared;
 using System.Text.Json;
+using System.Threading;
 
 namespace Agent
 {
@@ -111,7 +112,7 @@ namespace Agent
         {
             try
             {
-                Console.WriteLine("[QUERY] Đang lấy danh sách ứng dụng đã cài đặt...");
+                Console.WriteLine("[AGENT] Đang lấy danh sách ứng dụng đã cài đặt...");
                 var tempList = Functions.ApplicationManager.InstalledAppInfo.ListInstalledApps();
 
                 if (tempList == null || tempList.Count == 0)
@@ -125,7 +126,6 @@ namespace Agent
                 string jsonData = JsonSerializer.Serialize(new
                 {
                     Type = "INSTALLED_APP_LIST",
-                    Timestamp = DateTime.Now,
                     Data = tempList
                 });
 
@@ -195,13 +195,17 @@ namespace Agent
                     await _responseSender.SendStatus(false, $"Lỗi hệ thống khi đóng ứng dụng: {ex.Message}", ct);
                 }
             }
+            else
+            {
+                await _responseSender.SendStatus(false, "Dữ liệu StopApp không hợp lệ.", ct);
+            }
         }
 
         private async Task ExecuteListTask(CancellationToken cancellationToken)
         {
             try
             {
-                Console.WriteLine("[QUERY] Đang lấy danh sách các tác vụ đang chạy...");
+                Console.WriteLine("[AGENT] Đang lấy danh sách các tác vụ đang chạy...");
                 var processes = _taskManager.ListProcesses();
 
                 string jsonData = JsonSerializer.Serialize(new
@@ -246,6 +250,10 @@ namespace Agent
                     await _responseSender.SendStatus(false, $"Lỗi khởi chạy tác vụ: {ex.Message}", cancellationToken);
                 }
             }
+            else
+            {
+                await _responseSender.SendStatus(false, "Dữ liệu StartTask không hợp lệ.", cancellationToken);
+            }
         }
 
         private async Task ExecuteStopTask(object data, CancellationToken cancellationToken)
@@ -273,6 +281,10 @@ namespace Agent
                 {
                     await _responseSender.SendStatus(false, $"Lỗi khi dừng tác vụ: {ex.Message}", cancellationToken);
                 }
+            }
+            else
+            {
+                await _responseSender.SendStatus(false, "Dữ liệu StopTask không hợp lệ.", cancellationToken);
             }
         }
     
