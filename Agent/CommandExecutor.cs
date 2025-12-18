@@ -9,12 +9,14 @@ namespace Agent
         private IResponseSender _responseSender;
         private ApplicationManager _appManager;
         private TaskManager _taskManager;
+        private WebcamManager _webcamManager;
 
         public CommandExecutor(IResponseSender responseSender)
         {
             _responseSender = responseSender;
             _appManager = new ApplicationManager();
             _taskManager = new TaskManager();
+            _webcamManager = new WebcamManager();
         }
 
         public async Task Execute(RemoteCommand command, CancellationToken cancellationToken)
@@ -54,6 +56,13 @@ namespace Agent
                 case AgentCommandType.StopTask:
                     await ExecuteStopTask(command.Data, cancellationToken);
                     break;
+                case AgentCommandType.ListWebcam:
+                    await ExecuteListWebcam(cancellationToken);
+                    break;
+                case AgentCommandType.RecordingWebcam:
+                    await ExecuteRecordingWebcam(command.Data, cancellationToken);
+                    break;
+
                 default:
                     Console.WriteLine($"[EXECUTOR] Cảnh báo: Lệnh '{commandType}' hiện chưa được hỗ trợ hệ thống.");
                     break;
@@ -264,6 +273,81 @@ namespace Agent
                 {
                     await _responseSender.SendStatus(false, $"Lỗi khi dừng tác vụ: {ex.Message}", cancellationToken);
                 }
+            }
+        }
+    
+    
+        private async Task ExecuteListWebcam(CancellationToken cancellationToken)
+        {
+            try
+            {
+                Console.WriteLine("[QUERY] Đang lấy danh sách các tác vụ đang chạy...");
+                List<WebcamManager.WebcamInfo> processes = await _webcamManager.GetWebcamsListAsync();
+
+                string jsonData = JsonSerializer.Serialize(new
+                {
+                    Type = "WEBCAM_LIST",
+                    Data = processes
+                });
+
+                await _responseSender.SendText(jsonData, cancellationToken);
+                await _responseSender.SendStatus(true, $"Đã gửi danh sách {processes.Count} webcam.", cancellationToken);
+                Console.WriteLine($"[SUCCESS] Tìm thấy {processes.Count} webcam đang hoạt động.");
+            }
+            catch (Exception ex)
+            {
+                await _responseSender.SendStatus(false, $"Lỗi khi lấy danh sách webcam: {ex.Message}", cancellationToken);
+            }
+        }
+
+        public async Task ExecuteRecordingWebcam(object data, CancellationToken cancellationToken)
+        {
+            string? videoDeviceId = data switch
+            {
+                string s => s,
+                JsonElement e => e.ValueKind == JsonValueKind.String ? e.GetString() : null,
+                _ => null
+            };
+
+            if (string.IsNullOrEmpty(videoDeviceId))
+            {
+                string errorMsg = "Lỗi: Device ID không hợp lệ hoặc bị trống.";
+                await _responseSender.SendStatus(false, errorMsg, cancellationToken);
+                Console.WriteLine($"[WEBCAM] {errorMsg}");
+                return;
+            }
+
+            try
+            {
+                Console.WriteLine($"[ACTION] Bắt đầu ghi hình 10 giây trên thiết bị: {videoDeviceId}");
+                //await _responseSender.SendStatus(true, "Đang khởi tạo webcam và bắt đầu ghi hình...", cancellationToken);
+
+                byte[] videoData = await _webcamManager.RecordWebcamVideoAsync(videoDeviceId, 10);
+
+                if (videoData != null && videoData.Length > 0)
+                {
+                    Console.WriteLine($"[SUCCESS] Ghi hình hoàn tất. Dung lượng: {videoData.Length} bytes.");
+                    await _responseSender.SendData(MessageType.Video, videoData, cancellationToken);
+                    await _responseSender.SendStatus(true, "Đã gửi tệp video thành công.", cancellationToken);
+                }
+                else
+                {
+                    string failMsg = "Lỗi: Dữ liệu video thu được bị trống.";
+                    await _responseSender.SendStatus(false, failMsg, cancellationToken);
+                    Console.WriteLine($"[ERROR] {failMsg}");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                string cancelMsg = "Tác vụ ghi hình đã bị hủy bởi hệ thống/người dùng.";
+                await _responseSender.SendStatus(false, cancelMsg, cancellationToken);
+                Console.WriteLine($"[CANCEL] {cancelMsg}");
+            }
+            catch (Exception ex)
+            {
+                string errorMsg = $"Lỗi thực thi quay webcam: {ex.Message}";
+                await _responseSender.SendStatus(false, errorMsg, cancellationToken);
+                Console.WriteLine($"[FATAL] {errorMsg}");
             }
         }
     }

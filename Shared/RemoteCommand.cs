@@ -58,7 +58,8 @@ namespace Shared
        ListRunningTask,
        StartTask,
        StopTask,
-       Webcam
+       ListWebcam,
+       RecordingWebcam
     }
 
     public interface IResponseSender

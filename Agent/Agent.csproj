@@ -2,23 +2,21 @@
 
 	<PropertyGroup>
 		<OutputType>Exe</OutputType>
-		<TargetFramework>net9.0-windows</TargetFramework>
+		<TargetFramework>net9.0-windows10.0.19041.0</TargetFramework>
 		<UseWindowsForms>true</UseWindowsForms>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
+		<Platforms>AnyCPU;x86</Platforms>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\Shared\Shared.csproj" />
+	  <PackageReference Include="DirectShowLib.Standard" Version="2.1.0" />
+	  <PackageReference Include="Emgu.CV" Version="4.12.0.5764" />
+	  <PackageReference Include="Emgu.CV.runtime.windows" Version="4.12.0.5764" />
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="AForge" Version="2.2.5" />
-		<PackageReference Include="AForge.Video" Version="2.2.5" />
-		<PackageReference Include="AForge.Video.DirectShow" Version="2.2.5" />
-		<PackageReference Include="SharpDX" Version="4.2.0" />
-		<PackageReference Include="SharpDX.Direct3D11" Version="4.2.0" />
-		<PackageReference Include="SharpDX.DXGI" Version="4.2.0" />
+		<ProjectReference Include="..\Shared\Shared.csproj" />
 	</ItemGroup>
 
 </Project>
