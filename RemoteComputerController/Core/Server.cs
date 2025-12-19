@@ -1,210 +1,298 @@
-﻿using System.Net.WebSockets;
-using System.Text;
+﻿using Microsoft.AspNetCore.Hosting.Server;
 using Shared;
+using System.Diagnostics;
+using System.Net.WebSockets;
+using System.Text;
 
 namespace RemoteComputerController.Core
 {
     public class Server
     {
-        private WebSocket? _currentAgentSocket = null;
-        private WebSocket? _webUISocket = null;
+        private WebSocket? _agentSocket;
+        private WebSocket? _webUISocket;
 
-        public async Task ConnectAgent(WebSocket newSocket)
+        /* =========================
+         * AGENT CONNECTION
+         * ========================= */
+
+        public async Task ConnectAgent(WebSocket socket)
         {
-            if (_currentAgentSocket != null && _currentAgentSocket.State == WebSocketState.Open)
+            if (_agentSocket != null && _agentSocket.State == WebSocketState.Open)
             {
-                throw new InvalidOperationException("Đã mở kết nối rồi!");
-            }
-            else
-            {
-                if (newSocket == null) throw new InvalidOperationException("Kết nối không hợp lệ");
-                _currentAgentSocket = newSocket;
-                Console.WriteLine($"[SERVER] Đã thiết lập kết nối tới agent");
-                byte[] buffer = new byte[1024 * 4];
-                while (_currentAgentSocket.State == WebSocketState.Open)
+                Console.WriteLine("Agent đã kết nối rồi.");
+                try
                 {
-                    WebSocketReceiveResult result = await _currentAgentSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-                    using var ms = new MemoryStream();
+                    await socket.CloseAsync(WebSocketCloseStatus.PolicyViolation, "Another agent is already connected", CancellationToken.None);
+                }
+                catch (Exception)
+                {
+                    socket.Abort();
+                }
+                finally
+                {
+                    socket.Dispose();
+                }
+                return;
+            }
 
-                    do // Vòng lặp này xử lý các mảnh của một tin nhắn duy nhất
+            _agentSocket = socket;
+            Console.WriteLine("[SERVER] Agent connected");
+
+            byte[] buffer = new byte[4096];
+
+            try
+            {
+                while (_agentSocket.State == WebSocketState.Open)
+                {
+                    using var ms = new MemoryStream();
+                    WebSocketReceiveResult result;
+
+                    // Nhận đầy đủ 1 message
+                    do
                     {
-                        result = await _currentAgentSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                        result = await _agentSocket.ReceiveAsync(
+                            new ArraySegment<byte>(buffer),
+                            CancellationToken.None
+                        );
 
                         if (result.MessageType == WebSocketMessageType.Close)
                         {
-                            await _currentAgentSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Agent yêu cầu đóng kết nối", CancellationToken.None);
-                            _currentAgentSocket = null;
+                            await CloseAgentAsync();
                             return;
                         }
 
-                        if (result.Count > 0)
-                        {
-                            // Ghi mảnh dữ liệu vừa nhận được vào MemoryStream
-                            ms.Write(buffer, 0, result.Count);
-                        }
+                        ms.Write(buffer, 0, result.Count);
 
-                    } while (!result.EndOfMessage); // Lặp cho đến khi nhận được mảnh cuối cùng
+                    } while (!result.EndOfMessage);
 
-                    switch (result.MessageType)
-                    {
-                        case WebSocketMessageType.Text:
-                            byte[] textBuffer = ms.ToArray();
-                            string jsonResponse = Encoding.UTF8.GetString(textBuffer);
-                            try
-                            {
-                                RemoteCommand response = CommandJson.FromJson(jsonResponse);
-                                Console.WriteLine($"\n[AGENT RESPONSE] {response.Data}");
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine($"[SERVER ERROR] Lỗi dịch JSON phản hồi: {ex.Message}");
-                            }
-                            break;
+                    byte[] message = ms.ToArray();
+                    if (message.Length == 0) continue;
 
+                    // ===== AGENT PROTOCOL =====
+                    MessageType type = (MessageType)message[0];
+                    byte[] payload = message.Skip(1).ToArray();
 
-                        //Dữ liệu nhị phân
-                        case WebSocketMessageType.Binary:
-                            byte[] imageBuffer = ms.ToArray();
-                            string fileName = $"screenshot_{DateTime.Now:yyyyMMdd_HHmmss}.png";
-                            string savePath = Path.Combine("AgentData", fileName);
-
-                            try
-                            {
-                                // 2. Đảm bảo thư mục tồn tại
-                                Directory.CreateDirectory("AgentData");
-
-                                // 3. Ghi mảng byte ra file
-                                await File.WriteAllBytesAsync(savePath, imageBuffer);
-
-                                Console.WriteLine($"\n[SERVER] Đã nhận và lưu ảnh: {fileName} ({imageBuffer.Length} bytes)");
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine($"[SERVER ERROR] Lỗi khi lưu ảnh: {ex.Message}");
-                            }
-
-                            break;
-                    }
-                }
-            }
-        }
-
-        public async Task SendCommandAsync(RemoteCommand command)
-        {
-            try
-            {
-                if (_currentAgentSocket == null || _currentAgentSocket.State != WebSocketState.Open)
-                    throw new Exception("[Server] Agent socket đã đóng — gửi thất bại");
-
-                string json = CommandJson.ToJson(command);
-                byte[] buffer = Encoding.UTF8.GetBytes(json);
-
-                await _currentAgentSocket.SendAsync(
-                    new ArraySegment<byte>(buffer),
-                    WebSocketMessageType.Text,
-                    true,
-                    CancellationToken.None
-                );
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("[SERVER SEND ERROR] " + ex.Message);
-
-                // Nếu agent đã đóng → dọn socket
-                if (_currentAgentSocket?.State != WebSocketState.Open)
-                {
-                    Console.WriteLine("[SERVER] Agent socket không còn hoạt động.");
-                    _currentAgentSocket = null;
-                }
-            }
-        }
-
-
-        // Server.cs
-
-        public async Task ExecuteAgentCommand(string commandName)
-        {
-            // 1. Kiểm tra kết nối Agent
-            if (_currentAgentSocket != null && _currentAgentSocket.State == WebSocketState.Open)
-            {
-                try
-                {
-                    var command = new RemoteCommand { Name = commandName };
-                    // Lỗi phải xảy ra ở đây
-                    await SendCommandAsync(command);
-
-                    Console.WriteLine($"[SERVER] Đã gửi lệnh: {commandName}");
-                }
-                catch (Exception ex)
-                {
-                    // Nếu có lỗi, chúng ta phải thấy log này!
-                    Console.WriteLine($"[SERVER ERROR] Lỗi khi gửi lệnh {commandName} đến Agent: {ex.Message}");
-                }
-            }
-            else
-            {
-                Console.WriteLine("[SERVER WARNING] Không có Agent nào đang kết nối.");
-            }
-        }
-
-        private async Task ListenForControlCommandsAsync()
-        {
-            try // <--- BẮT ĐẦU khối try
-            {
-                byte[] buffer = new byte[1024 * 4];
-                if (_webUISocket == null) throw new Exception("Socket điều khiển chưa được gán.");
-
-                while (_webUISocket.State == WebSocketState.Open)
-                {
-                    WebSocketReceiveResult result = await _webUISocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-                    
-
-                    if (result.MessageType == WebSocketMessageType.Close)
-                    {
-                        break; // Thoát vòng lặp while, đi đến khối catch WebSocketException
-                    }
-                    Console.WriteLine(buffer.ToString());
-                    string commandString = Encoding.UTF8.GetString(buffer, 0, result.Count).Trim();
-                    Console.WriteLine(commandString);
-
-                    if (result.Count == 0) continue;
-
-                    if (commandString.Length > 0)
-                    {
-                        Console.WriteLine($"[CONTROL] Đã nhận lệnh từ WebUI: {commandString}"); // <-- Dòng kiểm tra
-                        await ExecuteAgentCommand(commandString);
-                    }
+                    await HandleAgentMessageAsync(type, payload);
                 }
             }
             catch (WebSocketException)
             {
-                Console.WriteLine("[SERVER] WebUI đóng kết nối.");
+                Console.WriteLine("[SERVER] Agent mất kết nối");
             }
-            catch (IOException ioEx) when (ioEx.Message.Contains("send loop completed gracefully"))
+            finally
             {
-                Console.WriteLine("[SERVER] WebUI đóng kết nối (send loop kết thúc).");
+                await CloseAgentAsync();
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[SERVER CRASH ERROR] Lỗi không lường trước: {ex.Message}");
-            }
-
         }
 
-        public async Task ConnectWebUI(WebSocket newSocket)
+        /* =========================
+         * HANDLE AGENT MESSAGE
+         * ========================= */
+
+        private async Task HandleAgentMessageAsync(MessageType type, byte[] payload)
+        {
+            switch (type)
+            {
+                case MessageType.Text:
+                    {
+                        string text = Encoding.UTF8.GetString(payload);
+                        Console.WriteLine("[AGENT TEXT] " + text);
+
+                        // (Optional) forward cho WebUI
+                        await ForwardToWebUIAsync(text);
+                        break;
+                    }
+
+                case MessageType.Status:
+                    {
+                        bool success = payload.Length > 0 && payload[0] == 1;
+                        string msg = Encoding.UTF8.GetString(payload, 1, payload.Length - 1);
+                        Console.WriteLine($"[AGENT STATUS] {(success ? "OK" : "FAIL")} - {msg}");
+
+                        await ForwardToWebUIAsync(msg);
+                        break;
+                    }
+
+                case MessageType.Image:
+                    await SaveBinaryAsync(payload, "png", "screenshot");
+                    await ForwardToWebUIAsync(payload);
+                    break;
+
+                case MessageType.Video:
+                    await SaveBinaryAsync(payload, "mp4", "webcam");
+                    await ForwardToWebUIAsync(payload);
+                    break;
+
+                default:
+                    Console.WriteLine($"[SERVER] Unknown MessageType: {type}");
+                    break;
+            }
+        }
+
+        private async Task SaveBinaryAsync(byte[] data, string ext, string prefix)
+        {
+            Directory.CreateDirectory("AgentData");
+
+            string file = $"{prefix}_{DateTime.Now:yyyyMMdd_HHmmss}.{ext}";
+            string path = Path.Combine("AgentData", file);
+
+            await File.WriteAllBytesAsync(path, data);
+            Console.WriteLine($"[SERVER] Đã lưu {file} ({data.Length} bytes)");
+        }
+
+        /* =========================
+         * SEND COMMAND TO AGENT
+         * ========================= */
+
+        public async Task SendCommandAsync(RemoteCommand command)
+        {
+            if (_agentSocket == null || _agentSocket.State != WebSocketState.Open)
+            {
+                Console.WriteLine("[SERVER] Agent chưa kết nối");
+                return;
+            }
+
+            string json = CommandJson.ToJson(command);
+            byte[] buffer = Encoding.UTF8.GetBytes(json);
+
+            await _agentSocket.SendAsync(
+                new ArraySegment<byte>(buffer),
+                WebSocketMessageType.Text,
+                true,
+                CancellationToken.None
+            );
+
+            Console.WriteLine($"[SERVER] Đã gửi lệnh: {command.Name}");
+        }
+
+        /* =========================
+         * WEB UI CONNECTION
+         * ========================= */
+
+        public async Task ConnectWebUI(WebSocket socket)
         {
             if (_webUISocket != null && _webUISocket.State == WebSocketState.Open)
+                throw new InvalidOperationException("WebUI đã kết nối.");
+
+            _webUISocket = socket;
+            Console.WriteLine("[SERVER] WebUI connected");
+
+            byte[] buffer = new byte[4096];
+
+            try
             {
-                throw new InvalidOperationException("Đã mở kết nối rồi!");
+                while (_webUISocket.State == WebSocketState.Open)
+                {
+                    using var ms = new MemoryStream();
+                    WebSocketReceiveResult result;
+
+                    do
+                    {
+                        result = await _webUISocket.ReceiveAsync(
+                            new ArraySegment<byte>(buffer),
+                            CancellationToken.None
+                        );
+
+                        if (result.MessageType == WebSocketMessageType.Close)
+                        {
+                            Console.WriteLine("[SERVER] WebUI disconnected");
+                            await _webUISocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client yêu cầu đóng kết nối", CancellationToken.None);
+                            return;
+                        }
+
+                        ms.Write(buffer, 0, result.Count);
+
+                    } while (!result.EndOfMessage);
+
+                    string json = Encoding.UTF8.GetString(ms.ToArray());
+                    if (string.IsNullOrWhiteSpace(json)) continue;
+
+                    Console.WriteLine("[WEBUI] " + json);
+
+                    // WebUI gửi RemoteCommand JSON
+                    RemoteCommand cmd = CommandJson.FromJson(json)!;
+                    if (cmd == null)
+                    {
+                        string msg = "[SERVER] Nhận được tin nhắn không hợp lệ từ WebUI";
+                        Console.WriteLine(msg);
+                        await ForwardToWebUIAsync(msg);
+                        continue;
+                    }
+                    await SendCommandAsync(cmd);
+                }
             }
-            else
+            catch (WebSocketException)
             {
-                if (newSocket == null) throw new InvalidOperationException("Kết nối không hợp lệ");
-                _webUISocket = newSocket;
-                Console.WriteLine("[SERVER] Đã kết nối thành công tới WebUI");
-                await ListenForControlCommandsAsync();
+                Console.WriteLine("[SERVER] WebUI disconnected");
+            }
+            catch (Exception ex) {
+                Console.WriteLine($"[SERVER] Lỗi trong ConnectWebUI: {ex.Message}");
             }
         }
-                    
+
+        /* =========================
+         * FORWARD (OPTIONAL)
+         * ========================= */
+
+        private async Task ForwardToWebUIAsync(object data)
+        {
+            if (_webUISocket == null || _webUISocket.State != WebSocketState.Open)
+                return;
+
+            switch (data)
+            {
+                case byte[] binary:
+                    await _webUISocket.SendAsync(
+                        new ArraySegment<byte>(binary),
+                        WebSocketMessageType.Binary,
+                        true,
+                        CancellationToken.None
+                    );
+                    break;
+
+                case string text:
+                    byte[] textBytes = Encoding.UTF8.GetBytes(text);
+                    await _webUISocket.SendAsync(
+                        new ArraySegment<byte>(textBytes),
+                        WebSocketMessageType.Text,
+                        true,
+                        CancellationToken.None
+                    );
+                    break;
+
+                default:
+                    Console.WriteLine($"[SERVER] Không hỗ trợ forward kiểu dữ liệu: {data.GetType().Name}");
+                    break;
+            }
+        }
+
+
+
+        /* =========================
+         * CLEANUP
+         * ========================= */
+
+        private async Task CloseAgentAsync()
+        {
+            if (_agentSocket == null) return;
+
+            try
+            {
+                if (_agentSocket.State == WebSocketState.Open)
+                {
+                    await _agentSocket.CloseAsync(
+                        WebSocketCloseStatus.NormalClosure,
+                        "Server shutdown",
+                        CancellationToken.None
+                    );
+                }
+            }
+            catch { }
+            finally
+            {
+                _agentSocket = null;
+                Console.WriteLine("[SERVER] Agent socket closed");
+            }
+        }
     }
 }

@@ -36,11 +36,14 @@ namespace Agent
                 case AgentCommandType.Restart:
                     ExecuteRestart();
                     break;
-                case AgentCommandType.Capture:
+                case AgentCommandType.Screenshot:
                     await ExecuteCapture(cancellationToken);
                     break;
                 case AgentCommandType.ListInstalledApp:
                     await ExecuteListInstalledApp(cancellationToken);
+                    break;
+                case AgentCommandType.ListRunningApp:
+                    await ExecuteListRunningApp(cancellationToken);
                     break;
                 case AgentCommandType.StartApp:
                     await ExecuteStartApp(command.Data, cancellationToken);
@@ -51,16 +54,16 @@ namespace Agent
                 case AgentCommandType.StartTask:
                     await ExecuteStartTask(command.Data, cancellationToken);
                     break;
-                case AgentCommandType.ListRunningTask:
+                case AgentCommandType.ListTask:
                     await ExecuteListTask(cancellationToken);
                     break;
                 case AgentCommandType.StopTask:
                     await ExecuteStopTask(command.Data, cancellationToken);
                     break;
-                case AgentCommandType.ListWebcam:
+                case AgentCommandType.WebcamList:
                     await ExecuteListWebcam(cancellationToken);
                     break;
-                case AgentCommandType.RecordingWebcam:
+                case AgentCommandType.WebcamRecord:
                     await ExecuteRecordingWebcam(command.Data, cancellationToken);
                     break;
 
@@ -125,7 +128,7 @@ namespace Agent
 
                 string jsonData = JsonSerializer.Serialize(new
                 {
-                    Type = "INSTALLED_APP_LIST",
+                    Name = "InstalledAppList",
                     Data = tempList
                 });
 
@@ -141,6 +144,39 @@ namespace Agent
             }
         }
 
+        private async Task ExecuteListRunningApp(CancellationToken cancellationToken)
+        {
+            try
+            {
+                Console.WriteLine("[AGENT] Đang lấy danh sách ứng dụng đang chạy...");
+                var temp = new Functions.ApplicationManager.RunningAppInfo();
+                var tempList = temp.ListRunningApplications();
+
+                if (tempList == null || tempList.Count == 0)
+                {
+                    string msg = "Không tìm thấy dữ liệu ứng dụng nào đang chạy.";
+                    Console.WriteLine($"[INFO] {msg}");
+                    await _responseSender.SendStatus(false, msg, cancellationToken);
+                    return;
+                }
+
+                string jsonData = JsonSerializer.Serialize(new
+                {
+                    Name = "RunningAppList",
+                    Data = tempList
+                });
+
+                await _responseSender.SendText(jsonData, cancellationToken);
+                await _responseSender.SendStatus(true, $"Đã gửi danh sách {tempList.Count} ứng dụng.", cancellationToken);
+                Console.WriteLine($"[SUCCESS] Đã gửi thông tin của {tempList.Count} ứng dụng.");
+            }
+            catch (Exception ex)
+            {
+                string msg = $"Lỗi khi truy xuất danh sách ứng dụng: {ex.Message}";
+                await _responseSender.SendStatus(false, msg, cancellationToken);
+                Console.WriteLine($"[ERROR] {msg}");
+            }
+        }
         private async Task ExecuteStartApp(object data, CancellationToken cancellationToken)
         {
             if (data is JsonElement element)
@@ -176,7 +212,7 @@ namespace Agent
             {
                 try
                 {
-                    if (!element.TryGetProperty("ID", out JsonElement idElement))
+                    if (!element.TryGetProperty("Id", out JsonElement idElement))
                     {
                         await _responseSender.SendStatus(false, "Thiếu mã định danh (ID) ứng dụng để đóng.", ct);
                         return;
@@ -210,8 +246,7 @@ namespace Agent
 
                 string jsonData = JsonSerializer.Serialize(new
                 {
-                    Type = "TASK_LIST",
-                    Timestamp = DateTime.Now,
+                    Name = "TaskList",
                     Data = processes
                 });
 
@@ -262,7 +297,7 @@ namespace Agent
             {
                 try
                 {
-                    if (element.TryGetProperty("ID", out JsonElement idElement))
+                    if (element.TryGetProperty("Id", out JsonElement idElement))
                     {
                         int pid = idElement.GetInt32();
                         Console.WriteLine($"[ACTION] Đang dừng tác vụ ID: {pid}");
@@ -298,7 +333,7 @@ namespace Agent
 
                 string jsonData = JsonSerializer.Serialize(new
                 {
-                    Type = "WEBCAM_LIST",
+                    Name = "WebcamList",
                     Data = processes
                 });
 

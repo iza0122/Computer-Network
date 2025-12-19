@@ -37,31 +37,59 @@ namespace Shared
             return JsonSerializer.Serialize(command, Options);
         }
         //Dịch chuỗi json thành lệnh
-        public static RemoteCommand FromJson(string json)
+        public static RemoteCommand? FromJson(string json)
         {
-            return JsonSerializer.Deserialize<RemoteCommand>(json, Options)
-        ?? throw new InvalidOperationException("Chuỗi json không hợp lệ!\n");
+            if (string.IsNullOrWhiteSpace(json)) return null;
+
+            try
+            {
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                };
+
+            return JsonSerializer.Deserialize<RemoteCommand>(json, options);
+            }
+            catch (JsonException ex)
+            {
+                // Ghi log nhẹ nhàng thay vì throw
+                Console.WriteLine($"[JSON ERROR] Dữ liệu không phải JSON hợp lệ: {ex.Message}");
+                return null;
+            }
         }
     }
 
     public enum AgentCommandType
     {
-       None,
-       Exit,
-       Shutdown,
-       Restart,
-       Capture,
-       StartApp,
-       ListRunningApp,
-       ListInstalledApp,
-       StopApp,
-       ListRunningTask,
-       StartTask,
-       StopTask,
-       ListWebcam,
-       RecordingWebcam, 
-       Keylogger
+        None = 0,
+
+        // ===== SYSTEM =====
+        Exit,           // Agent tự thoát
+        Shutdown,       // Tắt máy
+        Restart,        // Khởi động lại
+
+        // ===== SCREEN =====
+        Screenshot,     // Chụp màn hình
+
+        // ===== APPLICATION =====
+        ListRunningApp,
+        ListInstalledApp,        // App đã cài
+        StartApp,       // Mở app theo Id
+        StopApp,        // (optional – nếu có)
+
+        // ===== TASK / PROCESS =====
+        ListTask,       // Process đang chạy
+        StartTask,      // (hiếm dùng)
+        StopTask,       // Kill process theo PID
+
+        // ===== WEBCAM =====
+        WebcamList,     // Liệt kê webcam
+        WebcamRecord,   // Quay webcam
+
+        // ===== INPUT =====
+        Keylogger
     }
+
 
     public interface IResponseSender
     {

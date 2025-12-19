@@ -69,6 +69,13 @@ namespace Agent
 
                                 if (result.MessageType == WebSocketMessageType.Close)
                                 {
+                                    if (result.CloseStatus == WebSocketCloseStatus.PolicyViolation)
+                                    {
+                                        Console.WriteLine("[AGENT] Server đã kết nối tới 1 Agent r");
+                                        await CloseConnectionAsync();
+                                        Environment.Exit(0);
+                                        return;
+                                    }
                                     Console.WriteLine("[AGENT] Server yêu cầu đóng kết nối.");
                                     await CloseConnectionAsync();
                                     break;
