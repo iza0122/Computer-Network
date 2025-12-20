@@ -12,32 +12,33 @@ namespace Agent.Functions
         {
             public int Id { get; set; }
             public string Name { get; set; } = string.Empty;
-            public string Path { get; set; } = string.Empty;
+            public string ExecutablePath { get; set; } = string.Empty;
+
             public List<RunningAppInfo> ListRunningApplications()
             {
                 var result = new List<RunningAppInfo>();
 
-                foreach (var p in Process.GetProcesses())
+                foreach (var process in Process.GetProcesses())
                 {
                     try
                     {
-                        if (p.MainWindowHandle == IntPtr.Zero)
+                        if (process.MainWindowHandle == IntPtr.Zero)
                             continue;
 
-                        string name = p.MainWindowTitle;
+                        string name = process.MainWindowTitle;
                         if (string.IsNullOrWhiteSpace(name))
-                            name = p.ProcessName;
+                            name = process.ProcessName;
 
                         if (string.IsNullOrWhiteSpace(name))
                             continue;
 
-                        string path = p.MainModule.FileName;
+                        string path = TryGetProcessPath(process);
 
                         result.Add(new RunningAppInfo
                         {
-                            Id = p.Id,
+                            Id = process.Id,
                             Name = name.Trim(),
-                            Path = path
+                            ExecutablePath = path
                         });
                     }
                     catch
@@ -49,6 +50,18 @@ namespace Agent.Functions
                     .OrderBy(a => a.Name, StringComparer.CurrentCultureIgnoreCase)
                     .ToList();
             }
+
+            private static string TryGetProcessPath(Process process)
+            {
+                try
+                {
+                    return process.MainModule?.FileName ?? string.Empty;
+                }
+                catch
+                {
+                    return string.Empty;
+                }
+            }
         }
 
         public class InstalledAppInfo
@@ -56,6 +69,8 @@ namespace Agent.Functions
             public int Id { get; set; }
             public string Name { get; set; } = string.Empty;
             public string ExecutablePath { get; set; } = string.Empty;
+
+            public string Source { get; set; } = string.Empty;
 
             public static List<InstalledAppInfo> ListInstalledApps()
             {
@@ -66,49 +81,47 @@ namespace Agent.Functions
                 {
                 @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
                 @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
-                };
+            };
 
                 foreach (string root in roots)
                 {
-                    using var key = Registry.LocalMachine.OpenSubKey(root);
-                    if (key == null) continue;
+                    using var rootKey = Registry.LocalMachine.OpenSubKey(root);
+                    if (rootKey == null) continue;
 
-                    foreach (var subName in key.GetSubKeyNames())
+                    foreach (string subName in rootKey.GetSubKeyNames())
                     {
-                        using var sub = key.OpenSubKey(subName);
+                        using var sub = rootKey.OpenSubKey(subName);
+                        if (sub == null) continue;
 
-                        string? name = sub?.GetValue("DisplayName") as string;
+                        string? name = sub.GetValue("DisplayName") as string;
                         if (string.IsNullOrWhiteSpace(name))
                             continue;
 
-                        string? installDir = sub?.GetValue("InstallLocation") as string;
                         string? exePath = null;
+                        string source = "";
 
-                        // 1. InstallLocation
-                        if (!string.IsNullOrWhiteSpace(installDir)
-                            && Directory.Exists(installDir))
-                        {
-                            exePath = Directory
-                                .GetFiles(installDir, "*.exe", SearchOption.TopDirectoryOnly)
-                                .FirstOrDefault();
-                        }
+                        string? displayIcon = sub.GetValue("DisplayIcon") as string;
+                        exePath = ExtractExePath(displayIcon);
+                        if (IsValidExe(exePath))
+                            source = "DisplayIcon";
 
-                        // 2. UninstallString
                         if (exePath == null)
                         {
-                            string? uninstall = sub?.GetValue("UninstallString") as string;
-                            exePath = ExtractExePath(uninstall);
+                            string? installDir = sub.GetValue("InstallLocation") as string;
+                            exePath = FindExeInDirectory(installDir);
+                            if (IsValidExe(exePath))
+                                source = "InstallLocation";
                         }
 
-                        // 3. Validate exe
-                        if (exePath == null || !File.Exists(exePath))
+                        if (!IsValidExe(exePath))
                             continue;
 
                         result.Add(new InstalledAppInfo
                         {
                             Id = id++,
                             Name = name,
-                            ExecutablePath = exePath
+                            ExecutablePath = exePath!,
+                            Source = source
                         });
                     }
                 }
@@ -116,22 +129,47 @@ namespace Agent.Functions
                 return result;
             }
 
-            static string? ExtractExePath(string? text)
+            // ================== Helpers ==================
+
+            private static bool IsValidExe(string? path)
+            {
+                return !string.IsNullOrWhiteSpace(path)
+                       && path.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+                       && File.Exists(path);
+            }
+
+            private static string? FindExeInDirectory(string? directory)
+            {
+                if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+                    return null;
+
+                try
+                {
+                    return Directory.GetFiles(directory, "*.exe", SearchOption.TopDirectoryOnly)
+                        .OrderByDescending(f => new FileInfo(f).Length) // exe chính thường lớn nhất
+                        .FirstOrDefault();
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+
+            private static string? ExtractExePath(string? text)
             {
                 if (string.IsNullOrWhiteSpace(text))
                     return null;
 
-                int i = text.IndexOf(".exe", StringComparison.OrdinalIgnoreCase);
-                if (i == -1)
+                int exeIndex = text.IndexOf(".exe", StringComparison.OrdinalIgnoreCase);
+                if (exeIndex < 0)
                     return null;
 
-                int start = text.LastIndexOf('"', i);
-                if (start >= 0)
-                    return text.Substring(start + 1, i - start + 4);
+                int startQuote = text.LastIndexOf('"', exeIndex);
+                if (startQuote >= 0)
+                    return text.Substring(startQuote + 1, exeIndex - startQuote + 4);
 
-                return text.Substring(0, i + 4);
+                return text.Substring(0, exeIndex + 4);
             }
-
         }
 
         public bool StartApplication(string executablePath, string arguments = "")

