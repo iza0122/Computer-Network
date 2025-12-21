@@ -1,31 +1,956 @@
-html {
-  font-size: 14px;
-}
-
-@media (min-width: 768px) {
-  html {
-    font-size: 16px;
-  }
-}
-
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
-}
-
-html {
-  position: relative;
-  min-height: 100%;
-}
+﻿/* =========================================
+   1. CẤU HÌNH CHUNG & NỀN VŨ TRỤ
+   ========================================= */
 
 body {
-  margin-bottom: 60px;
+    background-color: #050505; /* Màu đen vũ trụ */
+    color: white;
+    font-family: 'Amatic SC', cursive; /* Font Among Us */
+    font-weight: 700;
+    font-size: 32px;
+    overflow-x: hidden;
+    /* LỚP SAO 1 (Sao nhỏ - Trôi chậm) */
+    background-image: url('https://www.transparenttextures.com/patterns/stardust.png');
+    background-repeat: repeat;
+    animation: spaceDrift 100s linear infinite;
 }
 
-.form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
-  color: var(--bs-secondary-color);
-  text-align: end;
+    /* LỚP SAO 2 (Sao to hơn - Trôi nhanh hơn để tạo độ sâu) */
+    body::before {
+        content: "";
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -2;
+        background-image: url('https://www.transparenttextures.com/patterns/stardust.png');
+        background-size: 500px; /* Phóng to hạt sao lên */
+        opacity: 0.6;
+        animation: spaceDrift 60s linear infinite;
+    }
+
+@keyframes spaceDrift {
+    from {
+        background-position: 0 0;
+    }
+
+    to {
+        background-position: 1000px 1000px;
+    }
 }
 
-.form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
-  text-align: start;
+/* =========================================
+   2. GIAO DIỆN UI (CARD, BUTTON, TEXT)
+   ========================================= */
+
+/* CARD TRONG SUỐT */
+.card {
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.card-header {
+    background-color: transparent !important;
+    border-bottom: none !important;
+    color: #fff !important;
+    font-size: 40px;
+    text-align: center;
+}
+
+/* NÚT BẤM AMONG US */
+.btn {
+    font-family: 'Amatic SC', cursive;
+    font-size: 35px;
+    font-weight: 700;
+    color: white !important;
+    text-transform: uppercase;
+    background-color: transparent !important;
+    border: 4px solid white !important;
+    border-radius: 15px;
+    padding: 10px 20px;
+    margin-bottom: 15px;
+    transition: all 0.2s;
+}
+
+    .btn:hover {
+        background-color: rgba(255, 255, 255, 0.1) !important;
+        transform: scale(1.05);
+        text-shadow: 0 0 10px #fff;
+    }
+
+/* Nút Tắt máy (Shutdown) - Đỏ */
+.btn-danger {
+    border-color: #ff0000 !important;
+    color: #ff0000 !important;
+}
+
+    .btn-danger:hover {
+        background-color: rgba(255, 0, 0, 0.2) !important;
+        box-shadow: 0 0 20px #ff0000;
+    }
+
+/* Nút Khởi động lại (Restart) - Vàng Cam */
+.btn-warning {
+    font-family: 'Amatic SC', cursive;
+    font-size: 32px;
+    font-weight: 700;
+    background-color: transparent !important;
+    border-radius: 15px;
+    padding: 10px 20px;
+    transition: all 0.2s;
+    color: #FFC107 !important;
+    border: 4px solid #FFC107 !important;
+}
+
+    .btn-warning:hover {
+        background-color: rgba(255, 193, 7, 0.2) !important;
+        box-shadow: 0 0 20px #FFC107;
+        transform: scale(1.05);
+        color: white !important;
+        text-shadow: 0 0 5px #FFC107;
+    }
+
+        .btn-warning:hover .fa-spin-hover {
+            animation: fa-spin 2s infinite linear;
+        }
+
+/* KHUNG LOG KẾT QUẢ & STATUS */
+#textResult {
+    /* --- GIỮ NGUYÊN STYLE CŨ --- */
+    background-color: rgba(0, 0, 0, 0.7) !important;
+    border: 2px solid white;
+    border-radius: 10px;
+    color: #38FED3 !important;
+    font-family: 'Courier New', monospace;
+    padding: 15px;
+    white-space: pre-wrap;
+    /* --- CHỈ THÊM ĐOẠN NÀY ĐỂ FULL MÀN HÌNH --- */
+    width: 100%;
+    min-height: 100%; /* Bắt buộc chiều cao bằng khung mẹ */
+    box-sizing: border-box; /* Giúp viền không bị lòi ra ngoài */
+    margin: 0; /* Xóa khoảng cách thừa */
+}
+
+/* --- NÚT TRẠNG THÁI KẾT NỐI (Đã nâng cấp) --- */
+#connectionStatus {
+    width: fit-content;
+    min-width: 300px;
+    margin: 20px auto;
+    font-family: 'Amatic SC', cursive;
+    font-weight: 700;
+    font-size: 35px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-align: center;
+    border-radius: 12px;
+    border-width: 3px;
+    border-style: solid;
+    padding: 5px 30px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    /* Hiệu ứng mặc định (Chưa kết nối) - Neon xanh lơ */
+    background-color: rgba(0, 255, 255, 0.05);
+    color: #00FFFF;
+    border-color: #00FFFF;
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.2);
+}
+
+    /* Hiệu ứng Hover: Sáng rực lên */
+    #connectionStatus:hover {
+        background-color: rgba(0, 255, 255, 0.15);
+        box-shadow: 0 0 20px #00FFFF, inset 0 0 10px #00FFFF;
+        text-shadow: 0 0 5px #00FFFF;
+        transform: scale(1.05);
+    }
+
+/* --- TRẠNG THÁI 1: ĐÃ KẾT NỐI (Xanh lá + Hiệu ứng thở) --- */
+.alert-success {
+    background-color: rgba(0, 255, 0, 0.1) !important;
+    color: #00FF00 !important;
+    border-color: #00FF00 !important;
+    /* Animation thở (Sáng - Tối nhịp nhàng) */
+    animation: breathing-green 3s infinite ease-in-out !important;
+}
+
+@keyframes breathing-green {
+    0% {
+        box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+    }
+
+    50% {
+        box-shadow: 0 0 25px rgba(0, 255, 0, 0.6);
+        text-shadow: 0 0 8px #00FF00;
+    }
+
+    100% {
+        box-shadow: 0 0 10px rgba(0, 255, 0, 0.2);
+    }
+}
+
+/* --- TRẠNG THÁI 2: MẤT KẾT NỐI (Đỏ + Hiệu ứng Glitch giật giật) --- */
+/* --- 1. TRẠNG THÁI ĐANG KẾT NỐI (Màu Cam - Xoay nhẹ) --- */
+.alert-connecting {
+    background-color: rgba(255, 140, 0, 0.15) !important; /* Cam đậm */
+    color: #FF8C00 !important; /* Chữ cam neon */
+    border-color: #FF8C00 !important; /* Viền cam */
+    cursor: wait !important;
+    /* Hiệu ứng: Sáng dần lên rồi tối đi (Nhịp thở) */
+    animation: pulse-orange 1s infinite ease-in-out;
+}
+
+@keyframes pulse-orange {
+    0% {
+        box-shadow: 0 0 5px rgba(255, 140, 0, 0.2);
+        transform: scale(1);
+    }
+
+    50% {
+        box-shadow: 0 0 20px rgba(255, 140, 0, 0.6);
+        transform: scale(1.02);
+    }
+
+    100% {
+        box-shadow: 0 0 5px rgba(255, 140, 0, 0.2);
+        transform: scale(1);
+    }
+}
+
+/* --- 2. TRẠNG THÁI MẤT KẾT NỐI (Báo động Sabotage - Nhấp nháy Đỏ/Đen) --- */
+.alert-danger {
+    background-color: rgba(50, 0, 0, 0.9) !important; /* Nền đen đỏ */
+    color: #FF0000 !important; /* Chữ Đỏ tươi */
+    border-color: #FF0000 !important;
+    font-weight: bold;
+    letter-spacing: 2px; /* Dãn chữ ra cho sợ */
+    /* Hiệu ứng: Chớp tắt liên tục như còi báo động */
+    animation: sabotage-alarm 0.8s infinite;
+}
+
+@keyframes sabotage-alarm {
+    0% {
+        background-color: rgba(50, 0, 0, 0.9);
+        box-shadow: 0 0 5px #FF0000;
+        border-color: #800000;
+    }
+
+    50% {
+        background-color: rgba(255, 0, 0, 0.3); /* Sáng rực lên */
+        box-shadow: 0 0 30px #FF0000, inset 0 0 20px #FF0000;
+        border-color: #FF0000;
+    }
+
+    100% {
+        background-color: rgba(50, 0, 0, 0.9);
+        box-shadow: 0 0 5px #FF0000;
+        border-color: #800000;
+    }
+}
+
+@keyframes glitch-red {
+    0% {
+        transform: translate(0, 0);
+        box-shadow: 0 0 5px red;
+    }
+
+    92% {
+        transform: translate(0, 0);
+    }
+
+    94% {
+        transform: translate(-2px, 2px);
+    }
+    /* Giật nhẹ */
+    96% {
+        transform: translate(2px, -2px);
+    }
+
+    98% {
+        transform: translate(0, 0);
+    }
+
+    100% {
+        box-shadow: 0 0 15px red;
+    }
+}
+
+/* --- TRẠNG THÁI 3: CẢNH BÁO / CHỜ (Vàng + Hiệu ứng nhịp đập) --- */
+.alert-warning {
+    background-color: rgba(245, 245, 87, 0.1) !important; /* Nền vàng trong suốt */
+    color: #F5F557 !important; /* Chữ vàng neon */
+    border-color: #F5F557 !important; /* Viền vàng */
+    /* Hiệu ứng phát sáng Neon */
+    box-shadow: 0 0 10px rgba(245, 245, 87, 0.3);
+    /* Animation: Đập nhẹ (Pulse) để gây chú ý mà không quá gắt */
+    animation: pulse-yellow 2s infinite ease-in-out;
+}
+
+@keyframes pulse-yellow {
+    0% {
+        box-shadow: 0 0 5px rgba(245, 245, 87, 0.3);
+        transform: scale(1);
+    }
+
+    50% {
+        box-shadow: 0 0 20px rgba(245, 245, 87, 0.6); /* Sáng rực lên */
+        transform: scale(1.02); /* Phóng to nhẹ 1 xíu */
+    }
+
+    100% {
+        box-shadow: 0 0 5px rgba(245, 245, 87, 0.3);
+        transform: scale(1);
+    }
+}
+
+@keyframes pulse-orange {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 165, 0, 0.7);
+        transform: scale(1);
+    }
+
+    70% {
+        box-shadow: 0 0 0 15px rgba(255, 165, 0, 0); /* Vòng sáng lan ra và mờ đi */
+        transform: scale(1.02); /* Phóng to nhẹ */
+    }
+
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 165, 0, 0);
+        transform: scale(1);
+    }
+}
+/* MÀN HÌNH MÁY TÍNH BẢNG */
+.tablet-container {
+    position: relative;
+    width: 100%;
+    padding-bottom: 62.5%;
+    max-width: 900px;
+    background-image: url('../images/tablet_frame.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    filter: drop-shadow(0 10px 15px rgba(0,0,0,0.5));
+}
+
+.tablet-screen {
+    position: absolute;
+    top: 11.5%;
+    left: 13.5%;
+    right: 13.5%;
+    bottom: 11.5%;
+    overflow: auto;
+    border-radius: 5px;
+}
+
+    .tablet-screen::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .tablet-screen::-webkit-scrollbar-thumb {
+        background: #555;
+        border-radius: 4px;
+    }
+
+    .tablet-screen::-webkit-scrollbar-track {
+        background: #222;
+    }
+
+/* File: wwwroot/css/among-us.css (hoặc trong thẻ <style>) */
+
+/* Sửa đoạn này trong site.css */
+#imgResult, #videoResult {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+    background-color: #000;
+}
+
+/* =========================================
+   3. HỆ THỐNG NHÂN VẬT & CHUYỂN ĐỘNG (NEW)
+   ========================================= */
+
+/* Cấu hình chung cho phi hành đoàn */
+[class^="au-char-"] {
+    position: fixed;
+    z-index: -1;
+    background-size: contain;
+    background-repeat: no-repeat;
+    opacity: 0.85;
+    pointer-events: none;
+    /* Đẩy ra khỏi màn hình để chờ animation đưa vào */
+    top: -200px;
+    left: -200px;
+    will-change: transform; /* Tối ưu hiệu năng */
+}
+
+/* 1. ĐỎ (Red) - Quỹ đạo số 8 hỗn loạn */
+.au-char-red {
+    width: 110px;
+    height: 140px;
+    background-image: url('../images/red_float.png');
+    animation: chaosPath1 53s linear infinite;
+}
+
+/* 2. XANH DƯƠNG (Blue) - Bay giật cục */
+.au-char-blue {
+    width: 120px;
+    height: 150px;
+    background-image: url('../images/blue.png');
+    animation: chaosPath2 67s ease-in-out infinite;
+    animation-delay: -10s;
+}
+
+/* 3. VÀNG (Yellow) - Xoay tít thò lò */
+.au-char-yellow {
+    width: 110px;
+    height: 140px;
+    background-image: url('../images/yellow.png');
+    animation: chaosTumble 41s linear infinite reverse;
+}
+
+/* 4. XANH LÁ (Lime) - Phóng to thu nhỏ */
+.au-char-lime {
+    width: 90px;
+    height: 110px;
+    background-image: url('../images/lime.png');
+    animation: chaosZoom 29s cubic-bezier(0.37, 0, 0.63, 1) infinite;
+}
+
+/* 5. TÍM (Purple) - Lượn sóng */
+.au-char-purple {
+    width: 115px;
+    height: 145px;
+    background-image: url('../images/purple.png');
+    animation: waveDrift 47s linear infinite;
+}
+
+/* 6. HỒNG (Pink) - Rơi tự do */
+.au-char-pink {
+    width: 100px;
+    height: 130px;
+    background-image: url('../images/pink.png');
+    animation: slowFall 61s linear infinite;
+    animation-delay: -25s;
+}
+
+/* 7. CON MA (Ghost) - Thoắt ẩn thoắt hiện */
+.au-char-ghost {
+    width: 100px;
+    height: 130px;
+    background-image: url('../images/ghost.png');
+    animation: ghostFloat 37s ease-in-out infinite;
+    opacity: 0.6;
+}
+
+/* 8. CÁI XÁC (Dead Body) - Giờ sẽ trôi dạt từ góc này sang góc kia */
+.au-char-dead {
+    width: 120px;
+    height: 80px;
+    background-image: url('../images/dead_body.png');
+    /* Animation mới: Trôi dạt đường dài (50s) */
+    animation: deadBodyDrift 50s linear infinite;
+    /* QUAN TRỌNG: Reset vị trí về 0 để animation tính toán đúng */
+    top: 0;
+    left: 0;
+    right: auto;
+    bottom: auto;
+}
+
+/* 9. CAM (Orange) & NÂU (Brown) - Bay chéo góc ngược chiều nhau */
+.au-char-orange {
+    width: 105px;
+    height: 135px;
+    background-image: url('../images/orange.png');
+    animation: cornerToCorner 59s linear infinite;
+}
+
+.au-char-brown {
+    width: 115px;
+    height: 145px;
+    background-image: url('../images/brown.png');
+    animation: cornerToCorner 63s linear infinite reverse;
+}
+
+/* 10. TRẮNG (White) - Bay vòng tròn quanh màn hình */
+.au-char-white {
+    width: 110px;
+    height: 140px;
+    background-image: url('../images/white.png');
+    left: 50%;
+    top: 50%; /* Tâm quỹ đạo */
+    animation: orbitBig 45s linear infinite;
+}
+
+/* 11. ĐEN (Black) - Bay ngược quỹ đạo số 8 */
+.au-char-black {
+    width: 125px;
+    height: 155px;
+    background-image: url('../images/black.png');
+    animation: chaosPath1 83s linear infinite reverse;
+}
+
+/* 12. XANH (Cyan) - Cả người cả cống */
+.au-char-cyan-vent {
+    width: 140px;
+    height: 140px;
+    background-image: url('../images/cyan_vent.png');
+    animation: chaosTumble 55s linear infinite;
+    animation-delay: -20s;
+}
+
+/* =========================================
+   4. KEYFRAMES: ĐỊNH NGHĨA CHUYỂN ĐỘNG (ĐÃ TỐI ƯU)
+   ========================================= */
+
+/* Quỹ đạo số 8 méo mó */
+@keyframes chaosPath1 {
+    0% {
+        transform: translate(0, 0) rotate(0deg);
+        opacity: 0;
+    }
+
+    10% {
+        opacity: 1;
+    }
+
+    25% {
+        transform: translate(90vw, 30vh) rotate(120deg);
+    }
+
+    50% {
+        transform: translate(50vw, 90vh) rotate(240deg);
+    }
+
+    75% {
+        transform: translate(-10vw, 40vh) rotate(300deg);
+    }
+
+    90% {
+        opacity: 1;
+    }
+
+    100% {
+        transform: translate(0, 0) rotate(360deg);
+        opacity: 0;
+    }
+}
+
+/* Bay giật cục */
+@keyframes chaosPath2 {
+    0% {
+        transform: translate(-20vw, -20vh) rotate(0deg) scale(0.5);
+    }
+
+    30% {
+        transform: translate(80vw, 30vh) rotate(-45deg) scale(1.2);
+    }
+
+    60% {
+        transform: translate(30vw, 90vh) rotate(90deg) scale(0.8);
+    }
+
+    80% {
+        transform: translate(100vw, 50vh) rotate(180deg) scale(1.1);
+    }
+
+    100% {
+        transform: translate(-20vw, -20vh) rotate(360deg) scale(0.5);
+    }
+}
+
+/* Bay đường dài và lộn vòng */
+@keyframes chaosTumble {
+    0% {
+        transform: translate(-20vw, 110vh) rotate(0deg);
+    }
+
+    100% {
+        transform: translate(110vw, -20vh) rotate(1080deg);
+    }
+}
+
+/* Phóng to thu nhỏ (Zoom) */
+/* =========================================
+   FIX LỖI CON LIME (XANH LÁ)
+   ========================================= */
+
+/* Tìm đoạn @keyframes chaosZoom và thay bằng đoạn này */
+@keyframes chaosZoom {
+    0% {
+        transform: translate(110vw, 60vh) scale(0.2) rotate(0deg);
+        opacity: 0.5;
+    }
+
+    50% {
+        /* ĐÃ XÓA z-index: 10 ở đây để không đè lên nút */
+        transform: translate(50vw, 30vh) scale(2.0) rotate(180deg);
+        opacity: 1;
+    }
+
+    100% {
+        transform: translate(-20vw, 90vh) scale(0.2) rotate(360deg);
+        opacity: 0.5;
+    }
+}
+
+/* Sóng hình Sin */
+@keyframes waveDrift {
+    0% {
+        transform: translate(-20vw, 20vh) rotate(15deg);
+    }
+
+    25% {
+        transform: translate(20vw, 70vh) rotate(-15deg);
+    }
+
+    50% {
+        transform: translate(50vw, 10vh) rotate(15deg);
+    }
+
+    75% {
+        transform: translate(80vw, 60vh) rotate(-15deg);
+    }
+
+    100% {
+        transform: translate(120vw, 30vh) rotate(15deg);
+    }
+}
+
+/* Rơi nhẹ nhàng */
+@keyframes slowFall {
+    0% {
+        transform: translate(10vw, -20vh) rotate(0deg);
+    }
+
+    100% {
+        transform: translate(60vw, 120vh) rotate(360deg);
+    }
+}
+
+/* Bay vòng tròn (Fixed Physics) */
+@keyframes orbitBig {
+    from {
+        transform: rotate(0deg) translateX(35vw) rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg) translateX(35vw) rotate(360deg);
+    }
+}
+
+/* Bay chéo góc */
+@keyframes cornerToCorner {
+    from {
+        transform: translate(-20vw, -20vh) rotate(0deg);
+    }
+
+    to {
+        transform: translate(120vw, 120vh) rotate(720deg);
+    }
+}
+
+/* Ma trôi (Hiệu ứng mờ ảo) */
+@keyframes ghostFloat {
+    0% {
+        transform: translate(10vw, 110vh) scale(1);
+        opacity: 0;
+        filter: blur(2px);
+    }
+
+    20% {
+        opacity: 0.6;
+        filter: blur(0px);
+    }
+
+    50% {
+        transform: translate(50vw, 50vh) scale(1.3) rotate(20deg);
+        opacity: 0.3;
+        filter: blur(4px);
+    }
+
+    80% {
+        opacity: 0.6;
+        filter: blur(0px);
+    }
+
+    100% {
+        transform: translate(90vw, -20vh) scale(1);
+        opacity: 0;
+        filter: blur(2px);
+    }
+}
+
+/* Xoay đều */
+@keyframes spinSlow {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Bồng bềnh (Fixed Performance - dùng translate thay vì margin) */
+@keyframes deepSpaceBob {
+    0% {
+        transform: translate(0, 0) rotate(0deg);
+    }
+
+    100% {
+        transform: translate(30px, -50px) rotate(10deg);
+    }
+}
+
+@keyframes deadBodyDrift {
+    0% {
+        /* Xuất phát từ dưới cùng bên trái (ngoài màn hình) */
+        transform: translate(-20vw, 110vh) rotate(0deg);
+        opacity: 0;
+    }
+
+    10% {
+        opacity: 1;
+    }
+
+    50% {
+        /* Bay đến giữa màn hình và xoay nửa vòng */
+        transform: translate(50vw, 50vh) rotate(180deg);
+    }
+
+    100% {
+        /* Bay thoát ra góc trên bên phải */
+        transform: translate(120vw, -20vh) rotate(720deg); /* Xoay tít 2 vòng */
+        opacity: 1;
+    }
+}
+
+
+/* 1. Đảm bảo container chính nằm trên nhân vật */
+.container, .container-fluid {
+    position: relative;
+    z-index: 10; /* Cao hơn nhân vật */
+}
+
+/* 2. Đảm bảo các nút bấm và khung thông báo nổi hẳn lên */
+.btn, .card, #connectionStatus {
+    position: relative;
+    z-index: 20; /* Cao hơn nữa cho chắc */
+}
+
+
+.tablet-screen {
+    background-color: #000000 !important; /* Nền đen đặc để che nhân vật phía sau */
+    z-index: 15;
+}
+
+/* ===== LIST APP & BUTTON START/STOP ===== */
+.list-container {
+    color: #38FED3;
+    font-family: 'VT323', monospace;
+    font-size: 26px;
+}
+
+.list-item {
+    border: 2px solid #38FED3;
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 16px;
+    background: rgba(0,0,0,0.65);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+
+.list-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 12px;
+    width: 100%;
+}
+
+    .list-actions .btn-among-us {
+        flex: 1; /* Ăn hết chiều ngang */
+        text-align: center;
+        padding: 12px 0;
+        font-size: 22px;
+        border-radius: 12px;
+    }
+
+
+/* Áp dụng class bạn cung cấp kèm tinh chỉnh font */
+/* Tùy chỉnh nút START và STOP theo yêu cầu */
+.btn-start,
+.btn-stop {
+    flex: 1;
+    width: 100%;
+    min-height: 60px;
+    text-align: center;
+    font-size: 32px;
+    font-weight: bold;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    font-family: 'VT323', monospace !important; /* Font pixel */
+    transition: 0.3s;
+    text-transform: uppercase;
+}
+
+/* Nút START: Xanh lá */
+.btn-start {
+    border: 3px solid #00ff00 !important;
+    color: #00ff00 !important;
+}
+
+    .btn-start:hover {
+        background: rgba(0, 255, 0, 0.2);
+        box-shadow: 0 0 15px #00ff00, inset 0 0 10px rgba(0, 255, 0, 0.3);
+    }
+
+/* Nút STOP: Đỏ rực như nút Shutdown */
+.btn-stop {
+    border: 3px solid #ff3333 !important;
+    color: #ff3333 !important;
+}
+
+    .btn-stop:hover {
+        background: rgba(255, 51, 51, 0.2);
+        box-shadow: 0 0 20px #ff3333, inset 0 0 10px rgba(255, 51, 51, 0.3);
+        text-shadow: 0 0 8px #ff3333;
+    }
+
+/* ===== THU NHỎ NÚT BÊN TRÁI ===== */
+.btn-among-us {
+    font-size: 22px;
+    padding: 8px 14px;
+    border-radius: 10px;
+    margin-bottom: 8px;
+}
+
+    .btn-among-us i {
+        width: 24px;
+        margin-right: 8px;
+        font-size: 18px;
+    }
+
+/* =========================================
+   5. HIỆU ỨNG NÂNG CAO (RIPPLE, TOAST, LOADING)
+   ========================================= */
+
+/* --- HIỆU ỨNG SÓNG (RIPPLE) KHI CLICK --- */
+.btn-among-us {
+    position: relative;
+    overflow: hidden;
+}
+
+span.ripple {
+    position: absolute;
+    border-radius: 50%;
+    transform: scale(0);
+    animation: ripple 0.6s linear;
+    background-color: rgba(255, 255, 255, 0.4);
+    pointer-events: none;
+}
+
+@keyframes ripple {
+    to {
+        transform: scale(4);
+        opacity: 0;
+    }
+}
+
+/* --- HỆ THỐNG THÔNG BÁO (TOAST) --- */
+/* Khung chứa các thông báo ở góc trên bên phải */
+#toast-box {
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    z-index: 9999;
+}
+
+.toast-msg {
+    min-width: 180px; /* Thu nhỏ chiều rộng */
+    background: rgba(0, 0, 0, 0.85);
+    color: #fff;
+    padding: 8px 15px; /* Giảm padding cho nhỏ lại */
+    margin-bottom: 5px;
+    border-radius: 4px;
+    border-left: 3px solid #00ffff;
+    font-size: 13px; /* Giảm cỡ chữ */
+    font-family: sans-serif;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    animation: slideInRight 0.3s ease-out;
+}
+/* Hiệu ứng trượt từ phải sang trái */
+@keyframes slideInRight {
+    from {
+        transform: translateX(120%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Hiệu ứng biến mất */
+@keyframes fadeOut {
+    to {
+        transform: translateX(120%);
+        opacity: 0;
+    }
+}
+
+/* --- HIỆU ỨNG DỪNG APP (MỜ DÒNG) --- */
+.list-item {
+    transition: all 0.4s ease;
+}
+
+/* Hiệu ứng xoay icon loading trong nút */
+.fa-spin {
+    animation: fa-spin 1s infinite linear;
+}
+
+/* --- FIX LỖI HIỂN THỊ KEYLOG --- */
+#keylogResult {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-y: auto;
+    text-align: left;
+}
+
+
+.tablet-screen table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'VT323', monospace;
+    font-size: 18px;
+    color: #38FED3;
+}
+
+.tablet-screen th {
+    background: rgba(56, 254, 211, 0.2);
+    position: sticky;
+    top: 0;
+    padding: 10px;
+    text-align: left;
+    border-bottom: 2px solid #38FED3;
+}
+
+.tablet-screen td {
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.tablet-screen tr:hover {
+    background: rgba(255, 255, 255, 0.05);
 }

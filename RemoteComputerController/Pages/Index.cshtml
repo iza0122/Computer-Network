@@ -1,10 +1,392 @@
 ﻿@page
 @model IndexModel
 @{
-    ViewData["Title"] = "Home page";
+    ViewData["Title"] = "Remote Control Among Us";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@400;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Coiny&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+
+
+<style>
+    /* Font chung */
+    body {
+        font-family: 'Amatic SC', cursive;
+        background-color: #050505;
+        background-image: url('https://www.transparenttextures.com/patterns/stardust.png');
+        color: white;
+        /* --- SỬA LỖI THANH CUỘN --- */
+        height: 100vh; /* Khóa cứng chiều cao bằng màn hình */
+        overflow: hidden; /* Ẩn hoàn toàn thanh trượt dọc và ngang */
+        /* -------------------------- */
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        user-select: none;
+    }
+
+    input, textarea, #textResult {
+        -webkit-user-select: text !important;
+        -moz-user-select: text !important;
+        -ms-user-select: text !important;
+        user-select: text !important;
+        cursor: auto; /* Hiện con trỏ chuột soạn thảo */
+    }
+    /* Hiệu ứng Dead Body (Mặc định ẩn) */
+    .dead-body-alert {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 9999;
+        font-family: 'Coiny', cursive;
+        font-size: 80px;
+        color: #C51111;
+        text-transform: uppercase;
+        white-space: nowrap;
+        -webkit-text-stroke: 4px black;
+        text-shadow: 4px 4px 0px rgba(0,0,0,0.5);
+        animation: shakeBody 0.5s ease-in-out infinite alternate;
+        display: none;
+    }
+
+    .overlay-dead {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.85);
+        z-index: 9998;
+        display: none;
+        pointer-events: none;
+    }
+
+    /* Style chung cho nút */
+    .btn-among-us {
+        background: rgba(0, 0, 0, 0.6);
+        border: 2px solid white;
+        color: white;
+        font-size: 22px; /* ↓ nhỏ chữ */
+        font-weight: bold;
+        text-align: left;
+        padding: 6px 14px; /* ↓ giảm chiều cao */
+        border-radius: 10px;
+        transition: 0.2s;
+        margin-bottom: 8px; /* ↓ sát nhau hơn */
+        backdrop-filter: blur(2px);
+    }
+
+
+        .btn-among-us:hover {
+            background: rgba(255,255,255,0.1);
+            transform: scale(1.02);
+            color: #00FFFF;
+            border-color: #00FFFF;
+        }
+
+        .btn-among-us i {
+            width: 30px;
+            text-align: center;
+            margin-right: 10px;
+        }
+
+    /* Wrapper chung cho cột phải */
+    .right-column-wrapper {
+        width: 100%;
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    /* Thanh điều khiển hệ thống */
+    .system-controls {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        margin: 15px auto 0 auto; /* Giảm margin một chút cho gọn */
+        width: 73%;
+    }
+
+    /* Nút hệ thống */
+    .btn-system {
+        flex: 1;
+        text-align: center !important;
+        padding: 12px 0 !important;
+        margin-bottom: 0 !important;
+        border-radius: 15px !important;
+    }
+
+    /* Restart */
+    .btn-restart {
+        border-color: #FFC107 !important;
+        color: #FFC107 !important;
+    }
+
+        .btn-restart:hover {
+            background: rgba(255, 193, 7, 0.15) !important;
+            border-color: #FFC107 !important;
+            color: #FFC107 !important;
+            transform: scale(1.02);
+            cursor: pointer;
+        }
+
+    /* Shutdown */
+    .btn-shutdown {
+        border-color: #DC3545 !important;
+        color: #DC3545 !important;
+    }
+
+        .btn-shutdown:hover {
+            background: rgba(220, 53, 69, 0.15) !important;
+            border-color: #DC3545 !important;
+            color: #DC3545 !important;
+            transform: scale(1.02);
+            cursor: pointer;
+        }
+
+    /* Khung máy tính bảng */
+    .tablet-container {
+        position: relative;
+        width: 100%;
+        padding-bottom: 62.5%;
+        background-image: url('../images/tablet_frame.png');
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        filter: drop-shadow(0 10px 15px rgba(0,0,0,0.5));
+    }
+
+    /* File: wwwroot/css/among-us.css (hoặc trong thẻ <style>) */
+
+    .tablet-screen {
+        position: absolute;
+        top: 11.5%;
+        left: 11.5%;
+        right: 15.5%;
+        bottom: 11.5%;
+        overflow: hidden; /* Ẩn thanh cuộn đi cho đẹp */
+        border-radius: 5px;
+        /* --- THÊM 3 DÒNG NÀY ĐỂ CĂN GIỮA --- */
+        display: block;
+        overflow-y: auto; /* QUAN TRỌNG: Bật lại thanh cuộn dọc để kéo danh sách */
+        overflow-x: hidden;
+        justify-content: center; /* Căn giữa ngang */
+        align-items: center; /* Căn giữa dọc */
+        background-color: #000; /* Nền đen để lấp khoảng trống nếu tỷ lệ video khác khung */
+    }
+
+        /* Ẩn thanh cuộn trong màn hình đen luôn cho đẹp (tùy chọn) */
+        .tablet-screen::-webkit-scrollbar {
+            width: 0px;
+            background: transparent;
+        }
+
+    @@keyframes shakeBody {
+        from {
+            transform: translate(-50%, -50%) rotate(-2deg);
+        }
+
+        to {
+            transform: translate(-50%, -50%) rotate(2deg);
+        }
+    }
+    /* --- TRẠNG THÁI NÚT ĐANG ĐƯỢC CHỌN (ACTIVE) --- */
+
+    .btn-active {
+        background-color: rgba(255, 255, 255, 0.1) !important; /* Trắng mờ 10% */
+        color: #ffffff !important;
+        border-color: #ffffff !important;
+        /* Hiệu ứng phát sáng trắng ảo diệu */
+        box-shadow: 0 0 10px rgba(255, 255, 255, 0.8), 0 0 20px rgba(255, 255, 255, 0.4);
+        transform: scale(1.05);
+        text-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(4px); /* Làm mờ nền sao phía sau nút */
+    }
+    /* --- BUTTON MÀU ĐỎ (Cho nút STOP) --- */
+    .btn-red {
+        border-color: #ff3333 !important;
+        color: #ff3333 !important;
+    }
+
+        .btn-red:hover {
+            background: rgba(255, 51, 51, 0.15) !important;
+            color: #fff !important;
+            border-color: #ff3333 !important;
+            /* Hiệu ứng phát sáng Đỏ */
+            box-shadow: 0 0 15px #ff3333, inset 0 0 10px rgba(255, 51, 51, 0.3);
+            text-shadow: 0 0 5px #ff3333;
+        }
+
+    /* --- BUTTON MÀU XANH LÁ (Cho nút START) --- */
+    .btn-green {
+        border-color: #00ff00 !important;
+        color: #00ff00 !important;
+    }
+
+        .btn-green:hover {
+            background: rgba(0, 255, 0, 0.15) !important;
+            color: #fff !important;
+            border-color: #00ff00 !important;
+            /* Hiệu ứng phát sáng Xanh Lá */
+            box-shadow: 0 0 15px #00ff00, inset 0 0 10px rgba(0, 255, 0, 0.3);
+            text-shadow: 0 0 5px #00ff00;
+        }
+    /* --- HIỆU ỨNG NÚT RESTART (Xoay icon liên tục khi nhấn) --- */
+    .btn-restart.loading i {
+        animation: fa-spin 1s infinite linear;
+    }
+
+    /* --- HIỆU ỨNG NÚT SHUTDOWN (Báo động đỏ nhấp nháy) --- */
+    .btn-shutdown.loading {
+        background-color: rgba(220, 53, 69, 0.4) !important;
+        animation: sabotage-alarm 0.6s infinite;
+        border-color: #ff0000 !important;
+        color: #fff !important;
+    }
+
+    /* Hiệu ứng lún nút khi nhấn (Dành cho 2 nút hệ thống) */
+    .btn-system:active {
+        transform: scale(0.9) !important;
+    }
+</style>
+
+<div id="deadOverlay" class="overlay-dead"></div>
+
+<div class="container-fluid d-flex flex-column align-items-center" style="height: 100%; padding: 20px 20px 0 20px; justify-content: flex-start;">
+
+    <div class="text-center w-100 mb-3" style="position: relative; z-index: 20; margin-top: 20px;">
+    </div>
+
 </div>
+
+<div class="text-center w-100 mb-3" style="position: relative; z-index: 20;">
+    <h1 style="font-family: 'VT323', cursive !important;
+           font-weight: 700;
+           font-size: 90px;
+           color: white;
+           text-shadow: 4px 4px 0 #000;
+           margin-bottom: 10px;
+           line-height: 1;">
+        BẢNG ĐIỀU KHIỂN TỪ XA
+    </h1>
+
+    <div id="connectionStatus" onclick="connectToServer()" class="alert blink-active"
+         style="width: fit-content; margin: 10px auto; font-size: 24px; font-weight: bold;
+                    border-radius: 10px; padding: 5px 20px; cursor: pointer;
+                    background-color: rgba(0, 255, 255, 0.1);
+                    border: 2px solid #00FFFF;
+                    color: #00FFFF;">
+        <i class="fas fa-plug"></i> KẾT NỐI
+    </div>
+</div>
+
+<div class="row w-100 align-items-center" style="max-width: 1700px;">
+
+    <div class="col-md-4 d-flex flex-column justify-content-center" style="padding-bottom: 80px;">
+        <div class="d-grid">
+            <button id="btnScreenshot" class="btn btn-among-us" onclick="guiLenh('Screenshot')">
+                <i class="fas fa-camera"></i> CHỤP MÀN HÌNH
+            </button>
+
+            <button id="btnGetWebcams" class="btn btn-among-us" onclick="guiLenh('WebcamList')">
+                <i class="fas fa-search"></i> CAMERA
+            </button>
+
+            <select id="webcamSelect" class="btn-among-us" style="display:none; width: 100%; font-size: 16px; background: #222;">
+            </select>
+
+            <button id="btnWebcamRecord" class="btn btn-among-us" style="display:none; border-color: #ff3333;" onclick="recordWebcam()">
+                <i class="fas fa-video"></i> QUAY CLIP 10S
+            </button>
+
+            <button id="btnKeylog" class="btn btn-among-us"
+                    onclick="highlightButton('btnKeylog'); guiLenh('KeyLogger')">
+                <i class="fas fa-keyboard"></i> LẤY KEYLOG
+            </button>
+
+            <button id="btnListApps" class="btn btn-among-us" onclick="guiLenh('ListInstalledApp')">
+                <i class="fas fa-window-restore"></i> XEM ỨNG DỤNG
+            </button>
+            <button onclick="guiLenh('ListRunningApp')">ỨNG DỤNG ĐANG CHẠY</button>
+
+            <button id="btnListProcesses" class="btn btn-among-us" onclick="guiLenh('ListTask')">
+                <i class="fas fa-microchip"></i> XEM TÁC VỤ
+            </button>
+
+            <button id="btnSaveLog" class="btn btn-among-us" onclick="downloadKeylog()">
+                <i class="fas fa-file-download"></i> LƯU DATA LOG
+            </button>
+
+            <button class="btn btn-among-us" onclick="saveFile()">
+                <i class="fas fa-save"></i> LƯU ẢNH/VIDEO
+            </button>
+            <button id="btnTest" class="btn btn-among-us" onclick="toggleTestMode()">
+                <i class="fas fa-flask"></i> TEST MODE
+            </button>
+
+            <div style="margin-top:10px;">
+                <input id="appNameInput" placeholder="Nhập tên app"
+                       style="width:100%; padding:6px; border-radius:16px; border:none; font-size:16px;" />
+
+                <button class="btn btn-among-us" style="margin-top:8px; text-align:center;"
+                        onclick="sendCommand({ Name: 'StartTask', Data: { Path: document.getElementById('appNameInput').value } })">
+                    ▶ CHẠY ỨNG DỤNG
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="col-md-8">
+        <div class="right-column-wrapper">
+            <div class="tablet-container">
+                <div class="tablet-screen">
+                    <div id="loadingSpinner" style="display:none; color: #38FED3; font-size: 30px; text-align: center; margin-top: 20px;">
+                        <i class="fas fa-spinner fa-spin"></i><br>ĐANG XỬ LÝ...
+                    </div>
+
+                    <img id="imgResult" src="#" style="display: none; width: 100%; border-radius: 5px;" />
+
+                    <video id="videoResult" controls style="display: none; width: 100%; border-radius: 5px;"></video>
+
+                    <div id="textResult" style="display: none; padding: 10px; color: #fff; font-family: 'VT323', monospace;"></div>
+
+                    <div id="listResult" class="list-container" style="display:none;"></div>
+
+                    <pre id="keylogResult" class="crt-effect"
+                         style="display: none; height: 100%; color: #00FF00; background: #000; padding: 10px; font-family: 'VT323', monospace; font-size: 18px;"></pre>
+                </div>
+            </div>
+            <div class="system-controls">
+                <button id="btnRestart" class="btn btn-among-us btn-system btn-restart" onclick="guiLenh('Restart')">
+                    <i class="fas fa-sync-alt"></i> RESTART
+                </button>
+                <button id="btnShutdown" class="btn btn-among-us btn-system btn-shutdown" onclick="guiLenh('Shutdown')">
+                    <i class="fas fa-power-off"></i> SHUTDOWN
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="au-char-ghost"></div>
+<div class="au-char-dead"></div>
+<div class="au-char-red"></div>
+<div class="au-char-cyan-vent"></div>
+<div class="au-char-yellow"></div>
+<div class="au-char-pink"></div>
+<div class="au-char-blue"></div>
+<div class="au-char-orange"></div>
+<div class="au-char-purple"></div>
+<div class="au-char-lime"></div>
+<div class="au-char-brown"></div>
+<div class="au-char-white"></div>
+<div class="au-char-black"></div>
+
+<div id="toast-box"></div>
+@section Scripts {
+    <script src="~/js/script.js"></script>
+}
