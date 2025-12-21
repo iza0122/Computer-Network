@@ -37,12 +37,12 @@ app.Use(async (context, next) =>
 
         if (context.Request.Path == "/agent")
         {
-            using var websocket = await context.WebSockets.AcceptWebSocketAsync();
+            var websocket = await context.WebSockets.AcceptWebSocketAsync();
             await server.ConnectAgent(websocket);
         }
         else if (context.Request.Path == "/control")
         {
-            using var websocket = await context.WebSockets.AcceptWebSocketAsync();
+            var websocket = await context.WebSockets.AcceptWebSocketAsync();
             await server.ConnectWebUI(websocket);
         }
         else

@@ -94,42 +94,42 @@ namespace RemoteComputerController.Core
             byte[] fullMessage = new byte[payload.Length + 1];
             fullMessage[0] = (byte)type;
             Buffer.BlockCopy(payload, 0, fullMessage, 1, payload.Length);
-            switch (type)
-            {
-                case MessageType.Text:
-                    {
-                        string text = Encoding.UTF8.GetString(payload);
-                        Console.WriteLine("[AGENT TEXT] " + text);
+            //switch (type)
+            //{
+            //    case MessageType.Text:
+            //        {
+            //            string text = Encoding.UTF8.GetString(payload);
+            //            Console.WriteLine("[AGENT TEXT] " + text);
 
-                        // (Optional) forward cho WebUI
-                        //await ForwardToWebUIAsync(text);
-                        break;
-                    }
+            //            // (Optional) forward cho WebUI
+            //            //await ForwardToWebUIAsync(text);
+            //            break;
+            //        }
 
-                case MessageType.Status:
-                    {
-                        bool success = payload.Length > 0 && payload[0] == 1;
-                        string msg = Encoding.UTF8.GetString(payload, 1, payload.Length - 1);
-                        Console.WriteLine($"[AGENT STATUS] {(success ? "OK" : "FAIL")} - {msg}");
+            //    case MessageType.Status:
+            //        {
+            //            bool success = payload.Length > 0 && payload[0] == 1;
+            //            string msg = Encoding.UTF8.GetString(payload, 1, payload.Length - 1);
+            //            Console.WriteLine($"[AGENT STATUS] {(success ? "OK" : "FAIL")} - {msg}");
 
-                        //await ForwardToWebUIAsync(msg);
-                        break;
-                    }
+            //            //await ForwardToWebUIAsync(msg);
+            //            break;
+            //        }
 
-                case MessageType.Image:
-                    await SaveBinaryAsync(payload, "png", "screenshot");
-                    //await ForwardToWebUIAsync(payload);
-                    break;
+            //    case MessageType.Image:
+            //        await SaveBinaryAsync(payload, "png", "screenshot");
+            //        //await ForwardToWebUIAsync(payload);
+            //        break;
 
-                case MessageType.Video:
-                    await SaveBinaryAsync(payload, "mp4", "webcam");
-                    //await ForwardToWebUIAsync(payload);
-                    break;
+            //    case MessageType.Video:
+            //        await SaveBinaryAsync(payload, "mp4", "webcam");
+            //        //await ForwardToWebUIAsync(payload);
+            //        break;
 
-                default:
-                    Console.WriteLine($"[SERVER] Unknown MessageType: {type}");
-                    break;
-            }
+            //    default:
+            //        Console.WriteLine($"[SERVER] Unknown MessageType: {type}");
+            //        break;
+            //}
             await ForwardToWebUIAsync(fullMessage);
         }
 
