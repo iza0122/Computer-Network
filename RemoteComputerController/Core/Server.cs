@@ -68,7 +68,7 @@ namespace RemoteComputerController.Core
                     byte[] message = ms.ToArray();
                     if (message.Length == 0) continue;
 
-                    // ===== AGENT PROTOCOL =====
+                    // ===== AGENT PROTOCOL ===== (Để test)
                     MessageType type = (MessageType)message[0];
                     byte[] payload = message.Skip(1).ToArray();
 
@@ -91,6 +91,9 @@ namespace RemoteComputerController.Core
 
         private async Task HandleAgentMessageAsync(MessageType type, byte[] payload)
         {
+            byte[] fullMessage = new byte[payload.Length + 1];
+            fullMessage[0] = (byte)type;
+            Buffer.BlockCopy(payload, 0, fullMessage, 1, payload.Length);
             switch (type)
             {
                 case MessageType.Text:
@@ -99,7 +102,7 @@ namespace RemoteComputerController.Core
                         Console.WriteLine("[AGENT TEXT] " + text);
 
                         // (Optional) forward cho WebUI
-                        await ForwardToWebUIAsync(text);
+                        //await ForwardToWebUIAsync(text);
                         break;
                     }
 
@@ -109,24 +112,25 @@ namespace RemoteComputerController.Core
                         string msg = Encoding.UTF8.GetString(payload, 1, payload.Length - 1);
                         Console.WriteLine($"[AGENT STATUS] {(success ? "OK" : "FAIL")} - {msg}");
 
-                        await ForwardToWebUIAsync(msg);
+                        //await ForwardToWebUIAsync(msg);
                         break;
                     }
 
                 case MessageType.Image:
                     await SaveBinaryAsync(payload, "png", "screenshot");
-                    await ForwardToWebUIAsync(payload);
+                    //await ForwardToWebUIAsync(payload);
                     break;
 
                 case MessageType.Video:
                     await SaveBinaryAsync(payload, "mp4", "webcam");
-                    await ForwardToWebUIAsync(payload);
+                    //await ForwardToWebUIAsync(payload);
                     break;
 
                 default:
                     Console.WriteLine($"[SERVER] Unknown MessageType: {type}");
                     break;
             }
+            await ForwardToWebUIAsync(fullMessage);
         }
 
         private async Task SaveBinaryAsync(byte[] data, string ext, string prefix)

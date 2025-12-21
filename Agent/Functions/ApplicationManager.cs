@@ -70,18 +70,15 @@ namespace Agent.Functions
             public string Name { get; set; } = string.Empty;
             public string ExecutablePath { get; set; } = string.Empty;
 
-            public string Source { get; set; } = string.Empty;
-
             public static List<InstalledAppInfo> ListInstalledApps()
             {
                 var result = new List<InstalledAppInfo>();
                 int id = 1;
-
                 string[] roots =
                 {
-                @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
-                @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
-            };
+            @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
+            @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"
+        };
 
                 foreach (string root in roots)
                 {
@@ -98,19 +95,20 @@ namespace Agent.Functions
                             continue;
 
                         string? exePath = null;
-                        string source = "";
 
-                        string? displayIcon = sub.GetValue("DisplayIcon") as string;
-                        exePath = ExtractExePath(displayIcon);
-                        if (IsValidExe(exePath))
-                            source = "DisplayIcon";
+                        // Ưu tiên InstallLocation để tránh installer/uninstaller
+                        string? installDir = sub.GetValue("InstallLocation") as string;
+                        exePath = FindMainExeInDirectory(installDir, name);
 
-                        if (exePath == null)
+                        // Nếu không tìm thấy, thử DisplayIcon (nhưng lọc kỹ)
+                        if (!IsValidExe(exePath))
                         {
-                            string? installDir = sub.GetValue("InstallLocation") as string;
-                            exePath = FindExeInDirectory(installDir);
-                            if (IsValidExe(exePath))
-                                source = "InstallLocation";
+                            string? displayIcon = sub.GetValue("DisplayIcon") as string;
+                            exePath = ExtractExePath(displayIcon);
+
+                            // Loại bỏ installer/uninstaller
+                            if (IsInstallerOrUninstaller(exePath))
+                                exePath = null;
                         }
 
                         if (!IsValidExe(exePath))
@@ -120,17 +118,14 @@ namespace Agent.Functions
                         {
                             Id = id++,
                             Name = name,
-                            ExecutablePath = exePath!,
-                            Source = source
+                            ExecutablePath = exePath!
                         });
                     }
                 }
-
                 return result;
             }
 
             // ================== Helpers ==================
-
             private static bool IsValidExe(string? path)
             {
                 return !string.IsNullOrWhiteSpace(path)
@@ -138,16 +133,40 @@ namespace Agent.Functions
                        && File.Exists(path);
             }
 
-            private static string? FindExeInDirectory(string? directory)
+            private static bool IsInstallerOrUninstaller(string? path)
+            {
+                if (string.IsNullOrWhiteSpace(path))
+                    return false;
+
+                string fileName = Path.GetFileNameWithoutExtension(path).ToLower();
+                string[] keywords = { "uninstall", "uninst", "setup", "install", "installer" };
+
+                return keywords.Any(k => fileName.Contains(k));
+            }
+
+            private static string? FindMainExeInDirectory(string? directory, string appName)
             {
                 if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
                     return null;
 
                 try
                 {
-                    return Directory.GetFiles(directory, "*.exe", SearchOption.TopDirectoryOnly)
-                        .OrderByDescending(f => new FileInfo(f).Length) // exe chính thường lớn nhất
-                        .FirstOrDefault();
+                    var exeFiles = Directory.GetFiles(directory, "*.exe", SearchOption.TopDirectoryOnly)
+                        .Where(f => !IsInstallerOrUninstaller(f))
+                        .ToList();
+
+                    if (!exeFiles.Any())
+                        return null;
+
+                    // Ưu tiên exe có tên giống app
+                    var matchingName = exeFiles.FirstOrDefault(f =>
+                        Path.GetFileNameWithoutExtension(f).Equals(appName, StringComparison.OrdinalIgnoreCase));
+
+                    if (matchingName != null)
+                        return matchingName;
+
+                    // Nếu không có, chọn exe lớn nhất (thường là exe chính)
+                    return exeFiles.OrderByDescending(f => new FileInfo(f).Length).FirstOrDefault();
                 }
                 catch
                 {
