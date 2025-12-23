@@ -1,7 +1,11 @@
 ﻿// ================================================================
 // 1. CẤU HÌNH & TRẠNG THÁI
 // ================================================================
-const WS_URL = "ws://192.168.1.124:5000/control";
+const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+const host = window.location.hostname; // Lấy IP hoặc Hostname từ thanh địa chỉ trình duyệt
+const port = '5000'; // Cổng của RemoteServer
+const WS_URL = `${protocol}//${host}:${port}/control`;
+console.log(">>> Hệ thống đang kết nối tới:", WS_URL);
 let socket = null;
 let isConnected = false;
 let lastImageUrl = null;

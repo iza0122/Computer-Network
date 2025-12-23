@@ -1,6 +1,8 @@
 ﻿using Shared;
 using System;
 using System.IO;
+using System.Net;
+using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Text;
 using System.Threading;
@@ -8,6 +10,49 @@ using System.Threading.Tasks;
 
 namespace Agent
 {
+    public static class DiscoveryClient
+    {
+        public static async Task<string> FindServerIP(int port = 8888, int timeoutMs = 5000)
+        {
+            using var udpClient = new UdpClient();
+            udpClient.EnableBroadcast = true;
+
+            // Cấu hình Timeout để không chờ vô hạn nếu không thấy Server
+            udpClient.Client.ReceiveTimeout = timeoutMs;
+
+            byte[] requestData = Encoding.UTF8.GetBytes("WHERE_IS_AMONGUS_SERVER");
+            var endPoint = new IPEndPoint(IPAddress.Broadcast, port);
+
+            Console.WriteLine($"[UDP] Đang quét Server trong mạng LAN (Port {port})...");
+
+            try
+            {
+                // Gửi tín hiệu Broadcast
+                await udpClient.SendAsync(requestData, requestData.Length, endPoint);
+
+                // Chờ phản hồi
+                var receiveTask = udpClient.ReceiveAsync();
+                if (await Task.WhenAny(receiveTask, Task.Delay(timeoutMs)) == receiveTask)
+                {
+                    var result = await receiveTask;
+                    string response = Encoding.UTF8.GetString(result.Buffer);
+
+                    if (response == "I_AM_SERVER")
+                    {
+                        string serverIp = result.RemoteEndPoint.Address.ToString();
+                        Console.WriteLine($"[UDP] Đã tìm thấy Server tại IP: {serverIp}");
+                        return serverIp;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[UDP Error] {ex.Message}");
+            }
+
+            return null;
+        }
+    }
     public class AgentNetworkClient : IResponseSender
     {
         private readonly Uri _serverUri;

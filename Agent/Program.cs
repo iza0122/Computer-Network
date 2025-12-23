@@ -1,11 +1,22 @@
-﻿
-using Agent;
+﻿using Agent;
 using Shared;
 using System.Text;
 
 Console.OutputEncoding = Encoding.UTF8;
 
-string URL = "ws://192.168.1.124:5000/agent";
+// --- TỰ ĐỘNG TÌM IP SERVER QUA UDP ---
+string serverIp = await DiscoveryClient.FindServerIP();
+
+if (string.IsNullOrEmpty(serverIp))
+{
+    Console.WriteLine("[ERROR] Không tìm thấy Server trong mạng LAN. Vui lòng kiểm tra lại Firewall!");
+    // Bạn có thể chọn dừng lại hoặc dùng IP mặc định để thử lại
+    // serverIp = "127.0.0.1"; 
+    return;
+}
+
+string URL = $"ws://{serverIp}:5000/agent";
+// -------------------------------------
 
 var cts = new CancellationTokenSource();
 var agent = new Agent.AgentNetworkClient(URL, cts);
@@ -21,15 +32,14 @@ Console.CancelKeyPress += (s, e) =>
 
 Task task = agent.ConnectAndListenAsync();
 
-// Program.cs - Sửa lỗi bằng cách chỉ giữ lại OperationCanceledException
-
 try
 {
     // Chờ vô hạn cho đến khi cts.Cancel() được gọi
     await Task.Delay(Timeout.InfiniteTimeSpan, cts.Token);
 }
-catch (OperationCanceledException) // CHỈ CẦN DÒNG NÀY LÀ ĐỦ
+catch (OperationCanceledException)
 {
-    Console.WriteLine("[MAIN] Nhận tín hiệu hủy từ Console. Đang tiến hành đóng Server...");
+    Console.WriteLine("[MAIN] Nhận tín hiệu hủy từ Console. Đang đóng Agent...");
 }
+
 await task;
